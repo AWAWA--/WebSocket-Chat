@@ -565,7 +565,17 @@ Ext.onReady(function() {
 				{
 					id : 'DrawLineButton',
 					xtype : 'button',
+					enableToggle : true,
+					toggleGroup : 'CanvasToolsGroup',
 					text : '線を描く'
+				},
+				'-',
+				{
+					id : 'DrawPointButton',
+					xtype : 'button',
+					enableToggle : true,
+					toggleGroup : 'CanvasToolsGroup',
+					text : '点を描く'
 				},
 				'-',
 				{
@@ -595,19 +605,23 @@ Ext.onReady(function() {
 				listeners : {
 					afterrender : function(panel) {
 						var canvas = document.getElementById('MyCanvas');
-						var drawCommand = new DrawLine(canvas);
-						// var drawCommand = new DrawBase(canvas);
+						var drawCommand = new DrawBase(canvas);
 						Ext.getCmp('DrawLineButton').addListener('click', function() {
 							drawCommand = new DrawLine(canvas);
 						});
+						Ext.getCmp('DrawPointButton').addListener('click', function() {
+							drawCommand = new DrawPoint(canvas);
+						});
 						Ext.EventManager.on(canvas, 'mousedown', 
-							function() { drawCommand.drawStart.apply(drawCommand, arguments) });
+							function() { drawCommand.mousedown.apply(drawCommand, arguments) });
 						Ext.EventManager.on(canvas, 'mousemove', 
-							function() { drawCommand.drawing.apply(drawCommand, arguments) });
+							function() { drawCommand.mousemove.apply(drawCommand, arguments) });
 						Ext.EventManager.on(canvas, 'mouseup', 
-							function() { drawCommand.drawEnd.apply(drawCommand, arguments) });
+							function() { drawCommand.mouseup.apply(drawCommand, arguments) });
 						Ext.EventManager.on(canvas, 'mouseout', 
-							function() { drawCommand.drawEnd.apply(drawCommand, arguments) });
+							function() { drawCommand.mouseup.apply(drawCommand, arguments) });
+						Ext.getCmp('DrawLineButton').toggle(true);
+						Ext.getCmp('DrawLineButton').fireEvent('click');
 					}
 				}
 			}]
@@ -1008,21 +1022,30 @@ function sendFigure(data) {
 }
 function handleFigure(data) {
 	var canvas = document.getElementById('MyCanvas');
-	var ctx = canvas.getContext('2d');
+	var context = canvas.getContext('2d');
 	switch(data.type) {
 	case 'line':
 		var paths = data.paths;
-		ctx.strokeStyle = data.color || '#000000';
-		ctx.beginPath();
-		ctx.moveTo(paths[0][0], paths[0][1]);
+		context.strokeStyle = data.color || '#000000';
+		context.beginPath();
+		context.moveTo(paths[0][0], paths[0][1]);
 		for (var i=1,l=paths.length; i<l; i++) {
-			ctx.lineTo(paths[i][0], paths[i][1]);
+			context.lineTo(paths[i][0], paths[i][1]);
 		}
-		ctx.stroke();
-		ctx.closePath();
+		context.stroke();
+		context.closePath();
+		break;
+	case 'point':
+		var paths = data.paths;
+		context.beginPath();
+		context.strokeStyle = data.color || '#000000';
+		context.fillStyle = data.color || '#000000';
+		context.arc(paths[0], paths[1], 4, 0, 360, true);
+		context.fill();
+		context.closePath();
 		break;
 	case 'clear':
-		ctx.clearRect(0, 0, canvas.width, canvas.height);
+		context.clearRect(0, 0, canvas.width, canvas.height);
 		break;
 	}
 }
@@ -1035,51 +1058,58 @@ var DrawBase = Ext.extend(function(){}, {
 		this.context = canvas.getContext('2d');
 		console.log('constructor: '+this.canvas+' '+this.context);
 	},
-	drawStart : function(evt, element) {
+	getXY : function(evt) {
+		var bEvt = evt.browserEvent;
+		return [
+			(bEvt.offsetX != null ? bEvt.offsetX : bEvt.layerX),
+			(bEvt.offsetY != null ? bEvt.offsetY : bEvt.layerY)
+		];
 	},
-	drawing : function(evt, element) {
+	mousedown : function(evt, element) {
 	},
-	drawEnd : function(evt, element) {
+	mousemove : function(evt, element) {
+	},
+	mouseup : function(evt, element) {
 	}
 });
-DrawLine = Ext.extend(DrawBase, {
+var DrawLine = Ext.extend(DrawBase, {
 	isDrawing : false,
 	oldX : -1,
 	oldY : -1,
-	pathList : [],
+	pathList : null,
 	color : '#000000',
-	drawStart : function(evt, element) {
-		var bEvt = evt.browserEvent;
-		this.oldX = bEvt.offsetX != null ? bEvt.offsetX : bEvt.layerX;
-		this.oldY = bEvt.offsetY != null ? bEvt.offsetY : bEvt.layerY;
+	mousedown : function(evt, element) {
+		var xy = this.getXY(evt);
+		this.oldX = xy[0];
+		this.oldY = xy[1];
 		this.pathList = [];
 		this.pathList.push([this.oldX, this.oldY]);
 		this.color = '#'+Ext.getCmp('CanvasColor').palette.value;
 		this.context.strokeStyle = this.color;
 		this.isDrawing = true;
-		console.log('drawStart: '+this.oldX+','+this.oldY);
+		console.log('mousedown: '+this.oldX+','+this.oldY);
 	},
-	drawing : function(evt, element) {
+	mousemove : function(evt, element) {
 		if (!this.isDrawing) { return; }
-		var bEvt = evt.browserEvent;
-		var x = bEvt.offsetX != null ? bEvt.offsetX : bEvt.layerX;
-		var y = bEvt.offsetY != null ? bEvt.offsetY : bEvt.layerY;
-		if (Math.abs(this.oldX - x) > 10 || Math.abs(this.oldY - y) > 10) {
+		var xy = this.getXY(evt);
+		var x = xy[0];
+		var y = xy[1];
+		if (Math.abs(x - this.oldX) > 10 || Math.abs(y - this.oldY) > 10) {
 			this.context.beginPath();
 			this.context.moveTo(this.oldX, this.oldY);
 			this.context.lineTo(x, y);
 			this.context.stroke();
 			this.context.closePath();
 			this.pathList.push([x, y]);
-			console.log('drawing: ('+this.oldX+','+this.oldY+') -> ('+x+','+y+')');
+			console.log('mousemove: ('+this.oldX+','+this.oldY+') -> ('+x+','+y+')');
 			this.oldX = x;
 			this.oldY = y;
 		}
 	},
-	drawEnd : function(evt, element) {
+	mouseup : function(evt, element) {
 		if (!this.isDrawing) { return; }
 		this.isDrawing = false;
-		console.log('drawEnd: '+this.pathList);
+		console.log('mouseup: '+this.pathList);
 		if (this.pathList.length > 1) {
 			sendFigure({
 				type : 'line',
@@ -1089,8 +1119,37 @@ DrawLine = Ext.extend(DrawBase, {
 		}
 	}
 });
-
-
+var DrawPoint = Ext.extend(DrawBase, {
+	isDrawing : false,
+	x : -1,
+	y : -1,
+	mousedown : function(evt, element) {
+		var xy = this.getXY(evt);
+		this.x = xy[0]; this.y = xy[1];
+		this.isDrawing = true;
+		console.log('mousedown: '+this.x+','+this.y);
+	},
+	mouseup : function(evt, element) {
+		if (!this.isDrawing) { return; }
+		this.isDrawing = false;
+		var xy = this.getXY(evt);
+		console.log('mouseup: '+xy);
+		if (Math.abs(xy[0] - this.x) < 10 && Math.abs(xy[1] - this.y) < 10) {
+			var color = '#'+Ext.getCmp('CanvasColor').palette.value;
+			this.context.beginPath();
+			this.context.strokeStyle = color;
+			this.context.fillStyle = color;
+			this.context.arc(this.x, this.y, 4, 0, 360, true);
+			this.context.fill();
+			this.context.closePath();
+			sendFigure({
+				type : 'point',
+				color : color,
+				paths : [this.x, this.y]
+			});
+		}
+	}
+});
 
 })(window);
 </script>
