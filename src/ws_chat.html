@@ -1,0 +1,1100 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+	<title>ws_chat</title>
+	<link rel="stylesheet" type="text/css" href="extjs/resources/css/ext-all.css"/> 
+	<script type="text/javascript" src="extjs/adapter/ext/ext-base.js"></script> 
+	<script type="text/javascript" src="extjs/ext-all.js"></script> 
+	<script type="text/javascript" src="socket.io/socket.io.js"></script>
+
+<script type="text/javascript">
+
+(function(global) {
+
+if (!global.console) {
+	global.console = {
+		'log' : function() {}
+	};
+}
+if (!global.JSON) {
+	global.JSON = {
+		'stringify' : function(o) { return Ext.util.JSON.encode(o); },
+		'parse' : function(s) { return Ext.util.JSON.decode(s); }
+	};
+}
+if (!global.localStorage) {
+	global.localStorage = {};
+}
+
+var socket = null;
+var connected = false;
+var config = {};
+var configTmp = null;
+var myID, myName, myHost, myAddr;
+var userStore = new Ext.data.JsonStore({
+	'autoDestroy': true,
+	'storeId': 'userStore',
+	'sortInfo': {
+		'field': 'loginDate',
+		'direction': 'DESC'
+	},
+	'root': 'users',
+	'idProperty': 'id',
+	'fields': ['id', 'name', 'host', 'addr', 'loginDate', 'userAgent']
+});
+
+Ext.EventManager.on(window, 'unload', function() {
+	if (socket != null) {
+		socket.disconnect();
+		socket = null;
+	}
+});
+Ext.onReady(function() {
+	
+	Ext.QuickTips.init();
+	Ext.apply(Ext.QuickTips.getQuickTip(), {
+		maxWidth: 200,
+		minWidth: 100,
+		showDelay: 50,
+		trackMouse: true
+	});
+
+	//設定読み込み
+	if (localStorage.config != null && localStorage.config != '' && localStorage.config != 'null') {
+		config = JSON.parse(localStorage.config);
+	}
+	config = Ext.applyIf(config, {
+		'notification_publicMsg' : true,
+		'notification_publicMsgTime' : 3.5,
+		'notification_publicReplyMsg' : true,
+		'notification_publicReplyMsgTime' : 3.5,
+		'notification_privateMsg' : true,
+		'notification_privateMsgTime' : -1,
+		'notification_privateReplyMsg' : true,
+		'notification_privateReplyMsgTime' : -1,
+		'notification_userAddDel' : true,
+		'notification_userAddDelTime' : 3.5
+	});
+	console.log('config : ' + JSON.stringify(config));
+	
+	var configDialog = new Ext.Window({
+		id : 'configDialog',
+		//autoWidth : true,
+		width : 500,
+		//autoHeight : true,
+		height : 450,
+		buttonAlign : 'center',
+		closable : true,
+		closeAction : 'hide',
+		initHidden : true,
+		modal : true,
+		resizable : true,
+		title : '設定',
+		listeners : {
+			show : function(dialog) {
+				configTmp = Ext.apply({}, config);
+
+				Ext.getCmp('notification_publicMsg_Field').setValue(config.notification_publicMsg);
+				Ext.getCmp('notification_publicMsgTime_Field').setDisabled(!config.notification_publicMsg);
+				Ext.getCmp('notification_publicMsgTime_Field').setValue(config.notification_publicMsgTime);
+
+				Ext.getCmp('notification_privateMsg_Field').setValue(config.notification_privateMsg);
+				Ext.getCmp('notification_privateMsgTime_Field').setDisabled(!config.notification_privateMsg);
+				Ext.getCmp('notification_privateMsgTime_Field').setValue(config.notification_privateMsgTime);
+
+				Ext.getCmp('notification_userAddDel_Field').setValue(config.notification_userAddDel);
+				Ext.getCmp('notification_userAddDelTime_Field').setDisabled(!config.notification_userAddDel);
+				Ext.getCmp('notification_userAddDelTime_Field').setValue(config.notification_userAddDelTime);
+			}
+		},
+		fbar : [{
+			text : '　OK　',
+			listeners : {
+				click : function() {
+					config = configTmp;
+					localStorage.config = JSON.stringify(config);
+					Ext.getCmp('configDialog').hide();
+				}
+			}
+		}, {
+			text : 'キャンセル',
+			listeners : {
+				click : function() {
+					Ext.getCmp('configDialog').hide();
+				}
+			}
+		}],
+		items : [
+			new Ext.TabPanel({
+				activeTab: 0,
+				enableTabScroll : true,
+				defaults : {
+					autoScroll : true,
+					padding : 5
+				},
+				items: [{
+					title: 'デスクトップ通知',
+					layout : 'fit',
+					height : 350,
+					items : [{
+						border : false,
+						layout : 'vbox',
+						align : 'left',
+						padding: 10,
+						items : [{
+							xtype: 'label',
+							margins: {top:3, right:0, bottom:15, left:0},
+							text: '※デスクトップ通知はGoogleChromeのみ使用できます'
+						},{
+							xtype: 'fieldset',
+							title: 'パブリックメッセージ着信時',
+							width: 400,
+							items : [{
+								id : 'notification_publicMsg_Field',
+								xtype: 'checkbox',
+								fieldLabel: '通知する',
+								checked : false,
+								handler : function(ckeckBox, checked) {
+									configTmp.notification_publicMsg = checked;
+									if (checked) {
+										Ext.getCmp('notification_publicMsgTime_Field').enable();
+									} else {
+										Ext.getCmp('notification_publicMsgTime_Field').disable();
+									}
+								}
+							}, {
+								id : 'notification_publicMsgTime_Field',
+								xtype: 'numberfield',
+								fieldLabel: '通知時間(秒)',
+								allowBlank : false,
+								allowNegative : true,
+								decimalPrecision : 1,
+								minValue : -1,
+								disabled : false,
+								value : 0,
+								listeners : (function() {
+									var tip;
+									return {
+										render : function(owner) {
+											tip = new Ext.ToolTip({
+												target: owner.getEl(),
+												bodyStyle : { whiteSpace : 'nowrap' },
+												html: '"-1"を設定すると通知ポップアップは<br />表示されたままとなります'
+											});
+										},
+										focus : function(e) { try { tip.show(); } catch(e) {} },
+										blur : function(numField) {
+											try { tip.hide(); } catch(e) {}
+											if (numField.isValid()) {
+												var val = numField.getValue();
+												console.log('publicMsgTime:' + val);
+												configTmp.notification_publicMsgTime = val;
+											}
+										}
+									};
+								})()
+							}]
+						}, {
+							xtype: 'fieldset',
+							title: 'プライベートメッセージ着信時',
+							width: 400,
+							items : [{
+								id : 'notification_privateMsg_Field',
+								xtype: 'checkbox',
+								fieldLabel: '通知する',
+								checked : false,
+								handler : function(ckeckBox, checked) {
+									configTmp.notification_privateMsg = checked;
+									if (checked) {
+										Ext.getCmp('notification_privateMsgTime_Field').enable();
+									} else {
+										Ext.getCmp('notification_privateMsgTime_Field').disable();
+									}
+								}
+							}, {
+								id : 'notification_privateMsgTime_Field',
+								xtype: 'numberfield',
+								fieldLabel: '通知時間(秒)',
+								allowBlank : false,
+								allowNegative : true,
+								decimalPrecision : 1,
+								minValue : -1,
+								disabled : false,
+								value : 0,
+								listeners : (function() {
+									var tip;
+									return {
+										render : function(owner) {
+											tip = new Ext.ToolTip({
+												target: owner.getEl(),
+												bodyStyle : { whiteSpace : 'nowrap' },
+												html: '"-1"を設定すると通知ポップアップは<br />表示されたままとなります'
+											});
+										},
+										focus : function(e) { try { tip.show(); } catch(e) {} },
+										blur : function(numField) {
+											try { tip.hide(); } catch(e) {}
+											if (numField.isValid()) {
+												var val = numField.getValue();
+												console.log('publicMsgTime:' + val);
+												configTmp.notification_privateMsgTime = val;
+											}
+										}
+									};
+								})()
+							}]
+						}, {
+							xtype: 'fieldset',
+							title: 'ユーザ参加／退室時',
+							width: 400,
+							items : [{
+								id : 'notification_userAddDel_Field',
+								xtype: 'checkbox',
+								fieldLabel: '通知する',
+								checked : false,
+								handler : function(ckeckBox, checked) {
+									configTmp.notification_userAddDel = checked;
+									if (checked) {
+										Ext.getCmp('notification_userAddDelTime_Field').enable();
+									} else {
+										Ext.getCmp('notification_userAddDelTime_Field').disable();
+									}
+								}
+							}, {
+								id : 'notification_userAddDelTime_Field',
+								xtype: 'numberfield',
+								fieldLabel: '通知時間(秒)',
+								allowBlank : false,
+								allowNegative : true,
+								decimalPrecision : 1,
+								minValue : -1,
+								disabled : false,
+								value : 0,
+								listeners : (function() {
+									var tip;
+									return {
+										render : function(owner) {
+											tip = new Ext.ToolTip({
+												target: owner.getEl(),
+												bodyStyle : { whiteSpace : 'nowrap' },
+												html: '"-1"を設定すると通知ポップアップは<br />表示されたままとなります'
+											});
+										},
+										focus : function(e) { try { tip.show(); } catch(e) {} },
+										blur : function(numField) {
+											try { tip.hide(); } catch(e) {}
+											if (numField.isValid()) {
+												var val = numField.getValue();
+												console.log('userAddDelTime:' + val);
+												configTmp.notification_userAddDelTime = val;
+											}
+										}
+									};
+								})()
+							}]
+						}]
+					}]
+				}]
+			})
+		]
+	});
+	
+	var toolBar = new Ext.Toolbar({
+		autoHeight : true,
+		items: [
+			{
+				text: 'デスクトップ通知を許可(GoogleChromeのみ)',
+				listeners: {
+					click : function() {
+						if (window.webkitNotifications) {
+							console.log('permission:'+window.webkitNotifications.checkPermission());
+							if (window.webkitNotifications.checkPermission() != 0) {
+								window.webkitNotifications.requestPermission(function() {
+									console.log('permission:'+window.webkitNotifications.checkPermission());
+								});
+							}
+						}
+					}
+				}
+			},
+			'-',
+			{
+				text : '設定',
+				listeners: {
+					click : function() {
+						configDialog.show();
+					}
+				}
+			},
+			'-',
+			{
+				text : 'ヘルプ',
+				listeners: {
+					click : function() {
+						Ext.MessageBox.alert(
+							' ',
+							'・二人きりで会話したい場合は、UserListから該当のユーザをクリック！'
+							+'<br />・ブラウザはIE9でも動きますが、GoogleChrome最新版がお勧め'
+							+'<br />・GoogleChromeの場合は最初に「デスクトップ通知を許可」を押してください'
+							+'<br />・気に入ったら美味しいビールおごって♪'
+						);
+					}
+				}
+			},
+			'->',
+			{
+				text: 'ログアウト',
+				listeners: {
+					click : function() {
+						Ext.MessageBox.alert(
+							' ',
+							'ログアウトしました。再接続するにはブラウザをリロードしてください。');
+						if (socket != null) { 
+							socket.disconnect();
+							//socket = null;
+						}
+					}
+				}
+			}
+		]
+	});
+	
+	var userGrid = new Ext.grid.GridPanel({
+		id : 'userGrid',
+		region:'east',
+		margins:'2 2 0 0',
+		split:true,
+		autoScroll : true,
+		collapsible : true,
+		stripeRows : true,
+		store: userStore,
+		colModel: new Ext.grid.ColumnModel({
+			defaults: {
+				width: 120,
+				editable : false,
+				sortable : true
+			},
+			columns: [
+				{
+					xtype : 'actioncolumn',
+					width : 20,
+					//icon downloaded from http://www.material-land.com/view__1853__0.html
+					icon : 'data:image/png;base64,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',
+					tooltip: 'このユーザとのプライベート会話タブを開きます',
+					renderer: function(value, metaData, record, rowIndex, colIndex, store) {
+						if (value == myID) {
+							metaData.attr = 'style="visibility:hidden;"'
+						}
+						return null;
+					},
+					handler: function(grid, rowIndex, colIndex) {
+						var record = grid.getStore().getAt(rowIndex);
+						var user = record.data;
+						if (user.id != myID) {
+							addPrivateTab(user);
+						}
+					}
+				},
+   				{header: 'ID', dataIndex: 'id', hidden: true,
+					renderer: function(value, metaData, record, rowIndex, colIndex, store) {
+						return Ext.util.Format.htmlEncode(value);
+					}
+   				},
+   				{header: 'Name', dataIndex: 'name',
+					renderer: function(value, metaData, record, rowIndex, colIndex, store) {
+						return Ext.util.Format.htmlEncode(value);
+					}
+   				},
+				{header: 'Host', dataIndex: 'host', width:70,
+					renderer: function(value, metaData, record, rowIndex, colIndex, store) {
+						return Ext.util.Format.htmlEncode(value);
+					}
+				},
+				{header: 'IP', dataIndex: 'addr', width:70,
+					renderer: function(value, metaData, record, rowIndex, colIndex, store) {
+						return Ext.util.Format.htmlEncode(value);
+					}
+				},
+				{header: 'LoginDate', dataIndex: 'loginDate', width: 150,
+					renderer: function(value, metaData, record, rowIndex, colIndex, store) {
+						return Ext.util.Format.date(new Date(value),'H:i:s Y/m/d');
+					}
+				},
+				{header: 'UserAgent', dataIndex: 'userAgent', width : 500,
+					renderer: function(value, metaData, record, rowIndex, colIndex, store) {
+						return Ext.util.Format.htmlEncode(value);
+					}
+				}
+			]
+		}),
+		viewConfig: {
+			forceFit: false
+		},
+		//sm: new Ext.grid.RowSelectionModel({singleSelect:true}),
+		width: 320,
+		frame: true,
+		title: '参加者一覧',
+		x: 0,
+		y : 0
+	});
+
+	var tabPanel = new Ext.TabPanel({
+		id : 'tabPanel',
+		region:'center',
+		// activeTab: 1,
+		autoShow : true,
+		enableTabScroll : true,
+		margins:'2 2 0 0',
+		listeners : {
+			render : function(tabPanel) {
+				tabPanel.setActiveTab(1);
+				tabPanel.setActiveTab(0);
+			},
+			beforetabchange : function(tabPanel, newTab, currentTab) {
+				setTimeout(function() {
+					if (newTab) {
+						newTab.doLayout();
+						var id = newTab.getId();
+						var text;
+						if (id == 'MainTab') {
+							text = Ext.getCmp('MainMsg');
+						} else if (/PrivateTab_/.test(id)) {
+							text = Ext.getCmp('PrivateMsg_' + id.replace(/PrivateTab_/, ''));
+						}
+						if (text) { 
+							text.focus();
+						}
+					}
+				}, 10);
+			}
+		},
+		items:[{
+			id : 'MainTab',
+			title	: '共有タイムライン',
+			layout : 'border',
+			closable : false,
+			items : 
+			[{
+				id : 'MainView',
+				region:'center',
+				autoScroll : true,
+				bodyStyle : {
+					backgroundColor : 'transparent !important'
+					//backgroundColor : '#4E79B2 !important'
+				},
+				//layout : 'vbox',
+				items : [
+				]
+			}, {
+				region:'north',
+				//autoHeight : true,
+				layout : 'border',
+				bodyStyle : {
+					height : '1.5em'
+				},
+				padding : 3,
+				items : 
+				[{
+					region : 'center',
+					layout : 'fit',
+					items : [
+	 					new Ext.form.TextField({
+	 						id : 'MainMsg',
+	 						enableKeyEvents : true,
+	 						listeners : {
+	 							keydown : function(textField, event) {
+	 								if (event.getKey() == 13) {
+	 									Ext.getCmp('sendButton').fireEvent('click');
+	 								}
+	 							}
+	 						}
+						})
+					]
+				},
+				new Ext.Button({
+					id : 'sendButton',
+					region : 'east',
+					//autoWidth : true,
+					style : {
+						width : '8em !important'
+					},
+					text : '　送信　',
+					listeners : {
+						click : function() {
+							var text = Ext.getCmp('MainMsg');
+							var msg = text.getValue();
+							if (msg != null && msg.length > 0) {
+								sendMessage({
+									msgTarget : null,
+									isReply : false,
+									msg : msg
+								});
+								text.setValue('');
+							}
+							text.focus();
+						}	
+					}
+				})
+				]
+			}]
+		},{
+			id : 'CanvasTab',
+			title	: '共有お絵かき',
+			layout : 'border',
+			closable : false,
+			items : [
+			{
+				xtype : 'toolbar',
+				region : 'north',
+				items : [
+				'-',
+				{
+					xtype : 'button',
+					text : '色を選択',
+					menu : new Ext.menu.ColorMenu({
+						id : 'CanvasColor',
+						value : '000000',
+						handler : function(palette, color) {
+							console.log(color);
+						}
+					})
+				},
+				'-',
+				{
+					id : 'DrawLineButton',
+					xtype : 'button',
+					text : '線を描く'
+				},
+				'-',
+				{
+					xtype : 'button',
+					text : 'キャンバス消去',
+					listeners : {
+						click : function() {
+							var canvas = document.getElementById('MyCanvas');
+							var ctx = canvas.getContext('2d');
+							ctx.clearRect(0, 0, canvas.width, canvas.height);
+							sendFigure({
+								type : 'clear'
+							});
+						}
+					}
+				},
+				'-'
+				]
+			}, {
+				layout : 'fit',
+				region : 'center',
+				html : '<div style="position:relative;">'
+					+ '<canvas id="MyCanvas" style="position:relative;background-color:silver;" '
+					+ ' width="'+screen.availWidth+'" height="'+screen.availHeight+'">'
+					+ '</canvas>'
+					+ '</div>',
+				listeners : {
+					afterrender : function(panel) {
+						var canvas = document.getElementById('MyCanvas');
+						var drawCommand = new DrawLine(canvas);
+						// var drawCommand = new DrawBase(canvas);
+						Ext.getCmp('DrawLineButton').addListener('click', function() {
+							drawCommand = new DrawLine(canvas);
+						});
+						Ext.EventManager.on(canvas, 'mousedown', 
+							function() { drawCommand.drawStart.apply(drawCommand, arguments) });
+						Ext.EventManager.on(canvas, 'mousemove', 
+							function() { drawCommand.drawing.apply(drawCommand, arguments) });
+						Ext.EventManager.on(canvas, 'mouseup', 
+							function() { drawCommand.drawEnd.apply(drawCommand, arguments) });
+						Ext.EventManager.on(canvas, 'mouseout', 
+							function() { drawCommand.drawEnd.apply(drawCommand, arguments) });
+					}
+				}
+			}]
+		}]
+	});
+
+	new Ext.Viewport({
+		layout:'border',
+		items:[
+			{
+				region : 'north',
+				autoHeight : true,
+				items : [toolBar]
+			},
+			userGrid, 
+			tabPanel
+		]
+	});
+	
+	showInitDialog();
+});
+
+function showInitDialog() {
+	Ext.MessageBox.show({
+ 	   title:'ログイン',
+ 	   msg: 'あなたが使用する名前を入力してください。',
+ 	   buttons: Ext.Msg.OK,
+ 	   closable : false,
+ 	   prompt : true,
+ 	   fn: function(button, text) {
+ 		   join(text);
+ 	   } ,
+ 	   icon: Ext.MessageBox.INFO
+ 	});
+}
+
+function join(name) {
+	if (name == null || name == '') {
+		showInitDialog();
+		return false;
+	}
+	var path = location.protocol+'//'+location.host+'/';
+	console.log('path: '+path);
+	socket = io.connect(path, {
+		'reconnect': true
+		// ,'reconnection delay' : 100
+		// ,'reconnection limit' : 60 * 1000
+		// ,'max reconnection attempts': 3
+		// ,'connect timeout' : 5 * 1000
+		// ,'try multiple transports' : false
+	});
+	socket.on('connect', function() {
+		console.log('connect '+arguments.length);
+		if (!connected) {
+			socket.emit('chat start', {name : name, reconnect : false});
+		}
+		connected = true;
+	});
+	socket.on('reconnect', function() {
+		console.log('reconnect '+arguments.length);
+		socket.emit('chat start', {name : name, reconnect : true});
+	});
+	socket.on('disconnect', function() {
+		console.log('disconnect:'+JSON.stringify(arguments));
+		// Ext.MessageBox.alert(
+		// 	' ',
+		// 	'接続が切れました。再接続するにはブラウザをリロードしてください。');
+	});
+	socket.on('connect_failed', function() {
+		console.log('connect_failed:'+JSON.stringify(arguments));
+		Ext.MessageBox.alert(
+			' ',
+			'サーバに接続できませんでした。再接続するにはブラウザをリロードしてください。');
+	});
+	socket.on('reconnect_failed', function() {
+		console.log('reconnect_failed:'+JSON.stringify(arguments));
+		Ext.MessageBox.alert(
+			' ',
+			'サーバに接続できませんでした。再接続するにはブラウザをリロードしてください。');
+	});
+	socket.on('error', function() {
+		console.log('error:'+JSON.stringify(arguments));
+		// Ext.MessageBox.alert(
+		// 	' ',
+		// 	'エラーが発生しました。再接続するにはブラウザをリロードしてください。');
+	});
+	socket.on('error push', function(data) {
+		console.log('error push: '+JSON.stringify(data));
+		var errorTitle = 'エラー';
+		var errorMsg = 'エラーが発生しました。';
+		switch(data.errorID) {
+		case 'PRIVATEMSG_CALLBACK_UNCATCHED':
+		case 'PRIVATEMSG_TARGET_NOT_EXIST':
+			errorTitle = 'メッセージ送信エラー';
+			errorMsg = 'プライベートメッセージを相手に届けることができませんでした。<br />' +
+				'メッセージ送信用のTabを一度閉じてから、もう一度試してください。';
+			break;
+		}
+		Ext.MessageBox.alert(errorTitle, errorMsg);
+	});
+	socket.on('chat setup', function(data) {
+		//console.log('setupData:'+JSON.stringify(data));
+		myID = data.myData.id;
+		myName = data.myData.name;
+		myHost = data.myData.host;
+		myAddr = data.myData.addr;
+		userStore.removeAll();
+		userStore.loadData(data);
+		Ext.getCmp('MainMsg').focus();
+	});
+	socket.on('msgLog push', function(data) {
+		//console.log('msg push: '+JSON.stringify(data));
+		var msgTab = Ext.getCmp('MainView');
+		var msgList = data.msgList;
+		for (var i=0,l=msgList.length;i<l;i++) {
+			msgAdd(msgTab, msgList[i]);
+		}
+	});
+	socket.on('user add', function(data) {
+		var readResult = userStore.reader.readRecords(data);
+		for (var i=0,l=readResult.records.length; i<l; i++) {
+			userStore.addSorted(readResult.records[i]);
+		}
+		if (!data.reconnect && config.notification_userAddDel) {
+			showDesktopPopup(
+				'ユーザ参加',
+				'「' + data.users.name + '」 が参加しました。',
+				config.notification_userAddDelTime
+			);
+		}
+	});
+	socket.on('user delete', function(data) {
+		var record = userStore.query('id', data.users.id);
+		if (record != null && record.length > 0) {
+			userStore.remove(record.get(0));
+		}
+		if (config.notification_userAddDel) {
+			showDesktopPopup(
+				'ユーザ退室',
+				'「' + data.users.name + '」 が退室しました。',
+				config.notification_userAddDelTime
+			);
+		}
+	});
+	socket.on('message push', function(data, callbackFn) {
+		//console.log('message: '+JSON.stringify(data));
+		//console.log('callbackFn: '+fn);
+		handleMessage(data, callbackFn);
+	});
+	socket.on('figure push', function(data) {
+		console.log('figure push: ');
+		handleFigure(data);
+	});
+	socket.on('figureLog push', function(data) {
+		// console.log('figureLog push: '+data.length);
+		var figureList = data.figureList;
+		for (var i=0,l=figureList.length; i<l; i++) {
+			handleFigure(figureList[i]);
+		}
+	});
+}
+
+function sendMessage(m) {
+	if (socket == null || socket.socket == null || socket.socket.connected == false) {
+		Ext.MessageBox.alert('　', 'サーバに接続していないため、メッセージを送ることができませんでした。');
+		return;
+	}
+	socket.emit('message send', {
+	   	'msgTarget' : ((m.msgTarget != null) ? m.msgTarget : ''),
+	   	'isReply' : m.isReply,
+	   	'msg' : '' + m.msg
+	});
+}
+
+function handleMessage(data, callbackFn) {
+	if (data.id != myID) {
+		if (data.isPrivate && callbackFn != null) {
+			callbackFn('private message catched.');
+		}
+		if (
+			(data.isPrivate && config.notification_privateMsg) ||
+			(!data.isPrivate && config.notification_publicMsg)
+		) {
+			showDesktopPopup(
+				data.name + ' からの' + (data.isPrivate ? 'プライベート' : '') + 'メッセージ',
+				data.msg,
+				(data.isPrivate ?
+					config.notification_privateMsgTime : 
+					config.notification_publicMsgTime)
+			);
+		}
+	}
+
+	var msgTab;
+	if (data.isPrivate) {
+		var openID = 
+			(data.msgTarget == myID) ? data.id : data.msgTarget;
+		var tabID = Ext.util.Format.htmlEncode(openID);
+		msgTab = Ext.getCmp('PrivateView_' + tabID);
+		if (msgTab == null) {
+			var record = userStore.query('id', openID);
+			if (record != null && record.length > 0) {
+				addPrivateTab(record.get(0).data);
+			}
+			msgTab = Ext.getCmp('PrivateView_' + tabID);
+		}
+	} else {
+		msgTab = Ext.getCmp('MainView');
+	}
+	msgAdd(msgTab, data);
+}
+
+function msgAdd(targetPanel, data) {
+	var msgPanel = new Ext.Panel({
+		//layout : 'vbox',
+		//align : 'stretch',
+		//height : 100,
+		autoHeight : true,
+		autoWidth : true,
+		bodyStyle : {
+			height : '2em'
+		},
+		padding : 5,
+		items : 
+		[{
+			layout : 'hbox',
+			height : 50,
+			autoHeight : true,
+			autoWidth : true,
+			border : false,
+			bodyStyle : {
+				height : '1em'
+			},
+			defaults:{
+				border : false,
+				bodyStyle : {
+					marginRight : '10px',
+					whiteSpace: 'nowrap',
+					color : 'silver',
+					fontSize : 'small'
+				}
+			},
+			items :
+			[
+				{ 
+					html : Ext.util.Format.htmlEncode(data.name) 
+				}, { 
+					html : 
+						Ext.util.Format.htmlEncode(data.host) 
+						+ '('
+						+ Ext.util.Format.htmlEncode(data.addr)
+						+ ')'
+				}, {
+					xtype:'spacer',
+					flex:1
+				}, { 
+					html : Ext.util.Format.htmlEncode(
+						Ext.util.Format.date(new Date(data.time),'Y/m/d H:i:s')
+					)
+				}
+			]
+		}, {
+			//height : 50,
+			autoHeight : true,
+			autoWidth : true,
+			border : false,
+			bodyStyle : {
+				height : '1em;',
+				wordBreak : 'break-all'
+			},
+			html : Ext.util.Format.htmlEncode(data.msg)
+		}]
+	});
+	msgPanel.doLayout();
+	//_msgPanel = msgPanel;
+	if (targetPanel.items.length > 100) {
+		targetPanel.remove(targetPanel.items.get(targetPanel.items.length-1), true);
+	}
+	targetPanel.insert(0, msgPanel);
+	targetPanel.doLayout();
+}
+
+function showDesktopPopup(title, msg, showTime) {
+	if (
+		window.webkitNotifications &&
+		window.webkitNotifications.checkPermission() == 0
+	) {
+		var notify = window.webkitNotifications.createNotification(
+			'./extjs/resources/images/default/window/icon-info.gif',
+			title,
+			msg
+		);
+		if (showTime > 0) {
+			notify.ondisplay = function() {
+   				setTimeout(function() { notify.cancel(); }, 
+   					showTime * 1000
+   				);
+			};
+		}
+		notify.show();
+	}
+}
+
+function addPrivateTab(user) {
+	var tabPanel = Ext.getCmp('tabPanel');
+	var escapedUserID = Ext.util.Format.htmlEncode(user.id);
+	var escapedUserName = Ext.util.Format.htmlEncode(user.name);
+	var escapedHost = Ext.util.Format.htmlEncode(user.host);
+	var escapedAddr = Ext.util.Format.htmlEncode(user.addr);
+	if (Ext.getCmp('PrivateTab_' + escapedUserID) == null) {
+		console.log('open new tab : ' + JSON.stringify(user));
+		tabPanel.add({
+			id : 'PrivateTab_' + escapedUserID,
+			title	: 'w/ ' + escapedUserName,
+			layout : 'fit',
+			closable : true,
+			items : 
+			[{
+				title : escapedUserName + ' : ' + escapedHost + '(' + escapedAddr + ')' + ' とのプライベート板',
+				layout : 'border',
+				items : [
+					{
+						id : 'PrivateView_' + escapedUserID,
+						region:'center',
+						autoScroll : true,
+						bodyStyle : {
+							backgroundColor : 'transparent !important'
+						},
+						items : [
+						]
+					}, {
+						region:'north',
+						//autoHeight : true,
+						layout : 'border',
+						bodyStyle : {
+							height : '1.5em'
+						},
+						padding : 3,
+						items : 
+						[{
+							region : 'center',
+							layout : 'fit',
+							items : [
+								new Ext.form.TextField({
+									id : 'PrivateMsg_' + escapedUserID,
+									enableKeyEvents : true,
+									listeners : {
+										keydown : function(textField, event) {
+											if (event.getKey() == 13) {
+												Ext.getCmp('PrivateSend_' + escapedUserID).fireEvent('click');
+											}
+										}
+									}
+								})
+							]
+						},
+						new Ext.Button({
+							id : 'PrivateSend_' + escapedUserID,
+							region : 'east',
+							//autoWidth : true,
+							style : {
+								width : '8em !important'
+							},
+							text : '　送信　',
+							listeners : {
+								click : function() {
+									var text = Ext.getCmp('PrivateMsg_' + escapedUserID);
+									var msg = text.getValue();
+									if (msg != null && msg.length > 0) {
+										sendMessage({
+											msgTarget : user.id,
+											isReply : false,
+											msg : msg
+										});
+										text.setValue('');
+									}
+									text.focus();
+								}
+							}
+						})
+						]
+					}
+				]
+			}]
+		});
+		tabPanel.doLayout();
+	}
+	tabPanel.setActiveTab('PrivateTab_' + escapedUserID);
+}
+
+
+function sendFigure(data) {
+	if (socket == null || socket.socket == null || socket.socket.connected == false) {
+		Ext.MessageBox.alert('　', 'サーバに接続していないため、メッセージを送ることができませんでした。');
+		return;
+	}
+	socket.emit('figure send', data);
+}
+function handleFigure(data) {
+	var canvas = document.getElementById('MyCanvas');
+	var ctx = canvas.getContext('2d');
+	switch(data.type) {
+	case 'line':
+		var paths = data.paths;
+		ctx.strokeStyle = data.color || '#000000';
+		ctx.beginPath();
+		ctx.moveTo(paths[0][0], paths[0][1]);
+		for (var i=1,l=paths.length; i<l; i++) {
+			ctx.lineTo(paths[i][0], paths[i][1]);
+		}
+		ctx.stroke();
+		ctx.closePath();
+		break;
+	case 'clear':
+		ctx.clearRect(0, 0, canvas.width, canvas.height);
+		break;
+	}
+}
+
+var DrawBase = Ext.extend(function(){}, {
+	canvas : null,
+	context : null,
+	constructor : function(canvas) { 
+		this.canvas = canvas;
+		this.context = canvas.getContext('2d');
+		console.log('constructor: '+this.canvas+' '+this.context);
+	},
+	drawStart : function(evt, element) {
+	},
+	drawing : function(evt, element) {
+	},
+	drawEnd : function(evt, element) {
+	}
+});
+DrawLine = Ext.extend(DrawBase, {
+	isDrawing : false,
+	oldX : -1,
+	oldY : -1,
+	pathList : [],
+	color : '#000000',
+	drawStart : function(evt, element) {
+		var bEvt = evt.browserEvent;
+		this.oldX = bEvt.offsetX != null ? bEvt.offsetX : bEvt.layerX;
+		this.oldY = bEvt.offsetY != null ? bEvt.offsetY : bEvt.layerY;
+		this.pathList = [];
+		this.pathList.push([this.oldX, this.oldY]);
+		this.color = '#'+Ext.getCmp('CanvasColor').palette.value;
+		this.context.strokeStyle = this.color;
+		this.isDrawing = true;
+		console.log('drawStart: '+this.oldX+','+this.oldY);
+	},
+	drawing : function(evt, element) {
+		if (!this.isDrawing) { return; }
+		var bEvt = evt.browserEvent;
+		var x = bEvt.offsetX != null ? bEvt.offsetX : bEvt.layerX;
+		var y = bEvt.offsetY != null ? bEvt.offsetY : bEvt.layerY;
+		if (Math.abs(this.oldX - x) > 10 || Math.abs(this.oldY - y) > 10) {
+			this.context.beginPath();
+			this.context.moveTo(this.oldX, this.oldY);
+			this.context.lineTo(x, y);
+			this.context.stroke();
+			this.context.closePath();
+			this.pathList.push([x, y]);
+			console.log('drawing: ('+this.oldX+','+this.oldY+') -> ('+x+','+y+')');
+			this.oldX = x;
+			this.oldY = y;
+		}
+	},
+	drawEnd : function(evt, element) {
+		if (!this.isDrawing) { return; }
+		this.isDrawing = false;
+		console.log('drawEnd: '+this.pathList);
+		if (this.pathList.length > 1) {
+			sendFigure({
+				type : 'line',
+				color : this.color,
+				paths : [].concat(this.pathList)
+			});
+		}
+	}
+});
+
+
+
+})(window);
+</script>
+</head>
+<body>
+</body>
+</html>
