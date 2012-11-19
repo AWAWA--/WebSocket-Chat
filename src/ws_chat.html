@@ -553,13 +553,14 @@ Ext.onReady(function() {
 				{
 					xtype : 'button',
 					text : '色を選択',
-					menu : new Ext.menu.ColorMenu({
+					menu : {
 						id : 'CanvasColor',
+						xtype : 'colormenu',
 						value : '000000',
 						handler : function(palette, color) {
 							console.log(color);
 						}
-					})
+					}
 				},
 				'-',
 				{
@@ -567,7 +568,45 @@ Ext.onReady(function() {
 					xtype : 'button',
 					enableToggle : true,
 					toggleGroup : 'CanvasToolsGroup',
-					text : '線を描く'
+					text : '線を描く',
+					menu : {
+						xtype : 'menu',
+						items : {
+							xtype : 'panel',
+							padding : 10,
+							items : {
+								id : 'CanvasLineSizeGroup',
+								xtype : 'radiogroup',
+								vertical : true,
+								columns : 1,
+								listeners : {
+									change : function(group, radio) {
+										setTimeout(function() {
+											Ext.getCmp('DrawLineButton').menu.hide();
+										}, 100);
+									}
+								},
+								items : 
+								[{
+									xtype : 'radio',
+									name : 'canvasLineSize',
+									checked : true,
+									boxLabel : 'ライン幅_小',
+									value : '小'
+								}, {
+									xtype : 'radio',
+									name : 'canvasLineSize',
+									boxLabel : 'ライン幅_中',
+									value : '中'
+								}, {
+									xtype : 'radio',
+									name : 'canvasLineSize',
+									boxLabel : 'ライン幅_大',
+									value : '大'
+								}]
+							}
+						}
+					}
 				},
 				'-',
 				{
@@ -575,7 +614,45 @@ Ext.onReady(function() {
 					xtype : 'button',
 					enableToggle : true,
 					toggleGroup : 'CanvasToolsGroup',
-					text : '点を描く'
+					text : '点を描く',
+					menu : {
+						xtype : 'menu',
+						items : {
+							xtype : 'panel',
+							padding : 10,
+							items : {
+								id : 'CanvasPointSizeGroup',
+								xtype : 'radiogroup',
+								vertical : true,
+								columns : 1,
+								listeners : {
+									change : function(group, radio) {
+										setTimeout(function() {
+											Ext.getCmp('DrawPointButton').menu.hide();
+										}, 100);
+									}
+								},
+								items : 
+								[{
+									xtype : 'radio',
+									name : 'canvasPointSize',
+									checked : true,
+									boxLabel : 'サイズ_小',
+									value : '小'
+								}, {
+									xtype : 'radio',
+									name : 'canvasPointSize',
+									boxLabel : 'サイズ_中',
+									value : '中'
+								}, {
+									xtype : 'radio',
+									name : 'canvasPointSize',
+									boxLabel : 'サイズ_大',
+									value : '大'
+								}]
+							}
+						}
+					}
 				},
 				'-',
 				{
@@ -598,30 +675,33 @@ Ext.onReady(function() {
 				layout : 'fit',
 				region : 'center',
 				html : '<div style="position:relative;">'
-					+ '<canvas id="MyCanvas" style="position:relative;background-color:silver;" '
+					+ '<canvas id="MyCanvas" style="position:relative;background-color:ivory;" '
 					+ ' width="'+screen.availWidth+'" height="'+screen.availHeight+'">'
 					+ '</canvas>'
 					+ '</div>',
 				listeners : {
 					afterrender : function(panel) {
 						var canvas = document.getElementById('MyCanvas');
-						var drawCommand = new DrawBase(canvas);
-						Ext.getCmp('DrawLineButton').addListener('click', function() {
-							drawCommand = new DrawLine(canvas);
+						var drawBaseCommand = new DrawBase(canvas);
+						var drawLineCommand = new DrawLine(canvas);
+						var drawPointCommand = new DrawPoint(canvas);
+						var activeCommand = drawBaseCommand;
+						Ext.getCmp('DrawLineButton').addListener('toggle', function(button, pressed) {
+							if (pressed) { activeCommand = drawLineCommand; }
 						});
-						Ext.getCmp('DrawPointButton').addListener('click', function() {
-							drawCommand = new DrawPoint(canvas);
+						Ext.getCmp('DrawPointButton').addListener('toggle', function(button, pressed) {
+							if (pressed) { activeCommand = drawPointCommand; }
 						});
 						Ext.EventManager.on(canvas, 'mousedown', 
-							function() { drawCommand.mousedown.apply(drawCommand, arguments) });
+							function() { activeCommand.mousedown.apply(activeCommand, arguments) });
 						Ext.EventManager.on(canvas, 'mousemove', 
-							function() { drawCommand.mousemove.apply(drawCommand, arguments) });
+							function() { activeCommand.mousemove.apply(activeCommand, arguments) });
 						Ext.EventManager.on(canvas, 'mouseup', 
-							function() { drawCommand.mouseup.apply(drawCommand, arguments) });
+							function() { activeCommand.mouseup.apply(activeCommand, arguments) });
 						Ext.EventManager.on(canvas, 'mouseout', 
-							function() { drawCommand.mouseup.apply(drawCommand, arguments) });
+							function() { activeCommand.mouseup.apply(activeCommand, arguments) });
 						Ext.getCmp('DrawLineButton').toggle(true);
-						Ext.getCmp('DrawLineButton').fireEvent('click');
+						Ext.getCmp('DrawLineButton').fireEvent('toggle');
 					}
 				}
 			}]
@@ -1027,6 +1107,8 @@ function handleFigure(data) {
 	case 'line':
 		var paths = data.paths;
 		context.strokeStyle = data.color || '#000000';
+		context.lineWidth = data.width != null ? data.width : 2;
+		context.lineCap = 'round';
 		context.beginPath();
 		context.moveTo(paths[0][0], paths[0][1]);
 		for (var i=1,l=paths.length; i<l; i++) {
@@ -1037,10 +1119,12 @@ function handleFigure(data) {
 		break;
 	case 'point':
 		var paths = data.paths;
+		var color = data.color || '#000000';
+		var size = data.size != null ? data.size : 2;
 		context.beginPath();
-		context.strokeStyle = data.color || '#000000';
-		context.fillStyle = data.color || '#000000';
-		context.arc(paths[0], paths[1], 4, 0, 360, true);
+		context.strokeStyle = color;
+		context.fillStyle = color;
+		context.arc(paths[0], paths[1], size, 0, 360, true);
 		context.fill();
 		context.closePath();
 		break;
@@ -1078,6 +1162,7 @@ var DrawLine = Ext.extend(DrawBase, {
 	oldY : -1,
 	pathList : null,
 	color : '#000000',
+	width : 2,
 	mousedown : function(evt, element) {
 		var xy = this.getXY(evt);
 		this.oldX = xy[0];
@@ -1086,6 +1171,16 @@ var DrawLine = Ext.extend(DrawBase, {
 		this.pathList.push([this.oldX, this.oldY]);
 		this.color = '#'+Ext.getCmp('CanvasColor').palette.value;
 		this.context.strokeStyle = this.color;
+		var widthCmp = Ext.getCmp('CanvasLineSizeGroup');
+		if (widthCmp != null && widthCmp.getValue() != null) {
+			switch (widthCmp.getValue().value) {
+				case '小': this.width = 2; break;
+				case '中': this.width = 4; break;
+				case '大': this.width = 8; break;
+			}
+		}
+		this.context.lineWidth = this.width;
+		this.context.lineCap = 'round';
 		this.isDrawing = true;
 		console.log('mousedown: '+this.oldX+','+this.oldY);
 	},
@@ -1094,7 +1189,7 @@ var DrawLine = Ext.extend(DrawBase, {
 		var xy = this.getXY(evt);
 		var x = xy[0];
 		var y = xy[1];
-		if (Math.abs(x - this.oldX) > 10 || Math.abs(y - this.oldY) > 10) {
+		if (Math.abs(x - this.oldX) > 5 || Math.abs(y - this.oldY) > 5) {
 			this.context.beginPath();
 			this.context.moveTo(this.oldX, this.oldY);
 			this.context.lineTo(x, y);
@@ -1114,40 +1209,38 @@ var DrawLine = Ext.extend(DrawBase, {
 			sendFigure({
 				type : 'line',
 				color : this.color,
+				width : this.width,
 				paths : [].concat(this.pathList)
 			});
 		}
 	}
 });
 var DrawPoint = Ext.extend(DrawBase, {
-	isDrawing : false,
-	x : -1,
-	y : -1,
 	mousedown : function(evt, element) {
 		var xy = this.getXY(evt);
-		this.x = xy[0]; this.y = xy[1];
-		this.isDrawing = true;
-		console.log('mousedown: '+this.x+','+this.y);
-	},
-	mouseup : function(evt, element) {
-		if (!this.isDrawing) { return; }
-		this.isDrawing = false;
-		var xy = this.getXY(evt);
-		console.log('mouseup: '+xy);
-		if (Math.abs(xy[0] - this.x) < 10 && Math.abs(xy[1] - this.y) < 10) {
-			var color = '#'+Ext.getCmp('CanvasColor').palette.value;
-			this.context.beginPath();
-			this.context.strokeStyle = color;
-			this.context.fillStyle = color;
-			this.context.arc(this.x, this.y, 4, 0, 360, true);
-			this.context.fill();
-			this.context.closePath();
-			sendFigure({
-				type : 'point',
-				color : color,
-				paths : [this.x, this.y]
-			});
+		console.log('mousedown: '+xy[0]+','+xy[1]);
+		var color = '#'+Ext.getCmp('CanvasColor').palette.value;
+		var size = 2;
+		var sizeCmp = Ext.getCmp('CanvasPointSizeGroup');
+		if (sizeCmp != null && sizeCmp.getValue() != null) {
+			switch (sizeCmp.getValue().value) {
+				case '小': size = 2; break;
+				case '中': size = 4; break;
+				case '大': size = 8; break;
+			}
 		}
+		this.context.beginPath();
+		this.context.strokeStyle = color;
+		this.context.fillStyle = color;
+		this.context.arc(xy[0], xy[1], size, 0, 360, true);
+		this.context.fill();
+		this.context.closePath();
+		sendFigure({
+			type : 'point',
+			color : color,
+			size : size,
+			paths : xy
+		});
 	}
 });
 
