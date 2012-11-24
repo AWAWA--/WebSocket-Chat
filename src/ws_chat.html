@@ -552,7 +552,7 @@ Ext.onReady(function() {
 				'-',
 				{
 					xtype : 'button',
-					text : '色を選択',
+					text : '描画色',
 					menu : {
 						id : 'CanvasColor',
 						xtype : 'colormenu',
@@ -564,89 +564,40 @@ Ext.onReady(function() {
 				},
 				'-',
 				{
-					id : 'DrawLineButton',
+					id : 'DrawSizeButton',
 					xtype : 'button',
-					enableToggle : true,
-					toggleGroup : 'CanvasToolsGroup',
-					text : '線を描く',
+					text : '描画サイズ',
 					menu : {
 						xtype : 'menu',
 						items : {
 							xtype : 'panel',
 							padding : 10,
 							items : {
-								id : 'CanvasLineSizeGroup',
+								id : 'CanvasDrawSizeGroup',
 								xtype : 'radiogroup',
 								vertical : true,
 								columns : 1,
+								width : 120,
 								listeners : {
 									change : function(group, radio) {
-										setTimeout(function() {
-											Ext.getCmp('DrawLineButton').menu.hide();
-										}, 100);
+										setTimeout(function() { Ext.getCmp('DrawSizeButton').menu.hide(); }, 100);
 									}
 								},
 								items : 
 								[{
 									xtype : 'radio',
-									name : 'canvasLineSize',
-									checked : true,
-									boxLabel : 'ライン幅_小',
-									value : '小'
-								}, {
-									xtype : 'radio',
-									name : 'canvasLineSize',
-									boxLabel : 'ライン幅_中',
-									value : '中'
-								}, {
-									xtype : 'radio',
-									name : 'canvasLineSize',
-									boxLabel : 'ライン幅_大',
-									value : '大'
-								}]
-							}
-						}
-					}
-				},
-				'-',
-				{
-					id : 'DrawPointButton',
-					xtype : 'button',
-					enableToggle : true,
-					toggleGroup : 'CanvasToolsGroup',
-					text : '点を描く',
-					menu : {
-						xtype : 'menu',
-						items : {
-							xtype : 'panel',
-							padding : 10,
-							items : {
-								id : 'CanvasPointSizeGroup',
-								xtype : 'radiogroup',
-								vertical : true,
-								columns : 1,
-								listeners : {
-									change : function(group, radio) {
-										setTimeout(function() {
-											Ext.getCmp('DrawPointButton').menu.hide();
-										}, 100);
-									}
-								},
-								items : 
-								[{
-									xtype : 'radio',
-									name : 'canvasPointSize',
-									checked : true,
+									name : 'canvasDrawSize',
 									boxLabel : 'サイズ_小',
 									value : '小'
 								}, {
 									xtype : 'radio',
-									name : 'canvasPointSize',
+									name : 'canvasDrawSize',
+									checked : true,
 									boxLabel : 'サイズ_中',
 									value : '中'
 								}, {
 									xtype : 'radio',
-									name : 'canvasPointSize',
+									name : 'canvasDrawSize',
 									boxLabel : 'サイズ_大',
 									value : '大'
 								}]
@@ -656,8 +607,32 @@ Ext.onReady(function() {
 				},
 				'-',
 				{
+					id : 'DrawLineButton',
 					xtype : 'button',
-					text : 'キャンバス消去',
+					enableToggle : true,
+					toggleGroup : 'CanvasToolsGroup',
+					text : '線を描く'
+				},
+				' ',
+				{
+					id : 'DrawPointButton',
+					xtype : 'button',
+					enableToggle : true,
+					toggleGroup : 'CanvasToolsGroup',
+					text : '点を描く'
+				},
+				' ',
+				{
+					id : 'CanvasEraseButton',
+					xtype : 'button',
+					enableToggle : true,
+					toggleGroup : 'CanvasToolsGroup',
+					text : '消しゴム'
+				},
+				'-',
+				{
+					xtype : 'button',
+					text : 'キャンバス全消去',
 					listeners : {
 						click : function() {
 							var canvas = document.getElementById('MyCanvas');
@@ -674,34 +649,52 @@ Ext.onReady(function() {
 			}, {
 				layout : 'fit',
 				region : 'center',
-				html : '<div style="position:relative;">'
-					+ '<canvas id="MyCanvas" style="position:relative;background-color:ivory;" '
-					+ ' width="'+screen.availWidth+'" height="'+screen.availHeight+'">'
-					+ '</canvas>'
+				html : 
+					'<div style="position:relative;">'
+					+ 	'<canvas id="MyCanvas" style="position:absolute;top:0px;left:0px;background-color:ivory;"'
+					+ 	' width="'+screen.availWidth+'" height="'+screen.availHeight+'">'
+					+ 	'</canvas>'
+					+ 	'<div id="MyCanvasTemporaryLayer" style="position:absolute;top:0px;left:0px;"></div>'
+					+ 	'<div id="MyCanvasEventHandleLayer" style="position:absolute;top:0px;left:0px;'
+					+ 		'width:'+screen.availWidth+'px;height:'+screen.availHeight+'px;'
+					+ 		'background-color:transparent;"></div>'
 					+ '</div>',
 				listeners : {
 					afterrender : function(panel) {
 						var canvas = document.getElementById('MyCanvas');
-						var drawBaseCommand = new DrawBase(canvas);
-						var drawLineCommand = new DrawLine(canvas);
-						var drawPointCommand = new DrawPoint(canvas);
+						var canvasTemporary = document.getElementById('MyCanvasTemporaryLayer');
+						var canvasEventHandle = document.getElementById('MyCanvasEventHandleLayer');
+						var drawBaseCommand = new DrawBase(canvas, canvasTemporary, canvasEventHandle);
+						var drawLineCommand = new DrawLine(canvas, canvasTemporary, canvasEventHandle);
+						var drawPointCommand = new DrawPoint(canvas, canvasTemporary, canvasEventHandle);
+						var eraseRectCommand = new EraseRect(canvas, canvasTemporary, canvasEventHandle);
 						var activeCommand = drawBaseCommand;
-						Ext.getCmp('DrawLineButton').addListener('toggle', function(button, pressed) {
-							if (pressed) { activeCommand = drawLineCommand; }
+						Ext.getCmp('DrawLineButton').addListener('click', function(button, evt) {
+							activeCommand.end();
+							activeCommand = button.pressed ? drawLineCommand : drawBaseCommand;
+							activeCommand.begin();
 						});
-						Ext.getCmp('DrawPointButton').addListener('toggle', function(button, pressed) {
-							if (pressed) { activeCommand = drawPointCommand; }
+						Ext.getCmp('DrawPointButton').addListener('click', function(button, evt) {
+							activeCommand.end();
+							activeCommand = button.pressed ? drawPointCommand : drawBaseCommand;
+							activeCommand.begin();
 						});
-						Ext.EventManager.on(canvas, 'mousedown', 
+						Ext.getCmp('CanvasEraseButton').addListener('click', function(button, evt) {
+							activeCommand.end();
+							activeCommand = button.pressed ? eraseRectCommand : drawBaseCommand;
+							activeCommand.begin();
+						});
+						Ext.EventManager.on(canvasEventHandle, 'mousedown', 
 							function() { activeCommand.mousedown.apply(activeCommand, arguments) });
-						Ext.EventManager.on(canvas, 'mousemove', 
+						Ext.EventManager.on(canvasEventHandle, 'mousemove', 
 							function() { activeCommand.mousemove.apply(activeCommand, arguments) });
-						Ext.EventManager.on(canvas, 'mouseup', 
+						Ext.EventManager.on(canvasEventHandle, 'mouseup', 
 							function() { activeCommand.mouseup.apply(activeCommand, arguments) });
-						Ext.EventManager.on(canvas, 'mouseout', 
+						Ext.EventManager.on(canvasEventHandle, 'mouseout', 
 							function() { activeCommand.mouseup.apply(activeCommand, arguments) });
-						Ext.getCmp('DrawLineButton').toggle(true);
-						Ext.getCmp('DrawLineButton').fireEvent('toggle');
+						var initButton = Ext.getCmp('DrawLineButton');
+						initButton.pressed = true;
+						initButton.fireEvent('click', initButton);
 					}
 				}
 			}]
@@ -916,9 +909,6 @@ function handleMessage(data, callbackFn) {
 
 function msgAdd(targetPanel, data) {
 	var msgPanel = new Ext.Panel({
-		//layout : 'vbox',
-		//align : 'stretch',
-		//height : 100,
 		autoHeight : true,
 		autoWidth : true,
 		bodyStyle : {
@@ -1128,6 +1118,14 @@ function handleFigure(data) {
 		context.fill();
 		context.closePath();
 		break;
+	case 'erase':
+		var points = data.points;
+		var size = data.size != null ? data.size : 30;
+		for (var i=0,l=points.length; i<l; i++) {
+			var xy = points[i];
+			context.clearRect(xy[0]-(size/2), xy[1]-(size/2), size, size);
+		}
+		break;
 	case 'clear':
 		context.clearRect(0, 0, canvas.width, canvas.height);
 		break;
@@ -1137,10 +1135,14 @@ function handleFigure(data) {
 var DrawBase = Ext.extend(function(){}, {
 	canvas : null,
 	context : null,
-	constructor : function(canvas) { 
+	canvasTemporary : null,
+	canvasEventHandle : null,
+	constructor : function(canvas, canvasTemporary, canvasEventHandle) { 
 		this.canvas = canvas;
 		this.context = canvas.getContext('2d');
-		console.log('constructor: '+this.canvas+' '+this.context);
+		this.canvasTemporary = canvasTemporary;
+		this.canvasEventHandle = canvasEventHandle;
+		// console.log('constructor: '+this.canvas+' '+this.context+' '+this.canvasTemporary+' '+this.canvasEventHandle);
 	},
 	getXY : function(evt) {
 		var bEvt = evt.browserEvent;
@@ -1149,11 +1151,15 @@ var DrawBase = Ext.extend(function(){}, {
 			(bEvt.offsetY != null ? bEvt.offsetY : bEvt.layerY)
 		];
 	},
-	mousedown : function(evt, element) {
-	},
-	mousemove : function(evt, element) {
-	},
-	mouseup : function(evt, element) {
+	begin : function() {},
+	mousedown : function(evt, element) {},
+	mousemove : function(evt, element) {},
+	mouseup : function(evt, element) {},
+	end : function() {
+		var tmp = this.canvasTemporary;
+		while (tmp.firstChild != null) {
+			tmp.removeChild(tmp.firstChild);
+		}
 	}
 });
 var DrawLine = Ext.extend(DrawBase, {
@@ -1162,7 +1168,7 @@ var DrawLine = Ext.extend(DrawBase, {
 	oldY : -1,
 	pathList : null,
 	color : '#000000',
-	width : 2,
+	width : 4,
 	mousedown : function(evt, element) {
 		var xy = this.getXY(evt);
 		this.oldX = xy[0];
@@ -1171,7 +1177,7 @@ var DrawLine = Ext.extend(DrawBase, {
 		this.pathList.push([this.oldX, this.oldY]);
 		this.color = '#'+Ext.getCmp('CanvasColor').palette.value;
 		this.context.strokeStyle = this.color;
-		var widthCmp = Ext.getCmp('CanvasLineSizeGroup');
+		var widthCmp = Ext.getCmp('CanvasDrawSizeGroup');
 		if (widthCmp != null && widthCmp.getValue() != null) {
 			switch (widthCmp.getValue().value) {
 				case '小': this.width = 2; break;
@@ -1183,6 +1189,7 @@ var DrawLine = Ext.extend(DrawBase, {
 		this.context.lineCap = 'round';
 		this.isDrawing = true;
 		console.log('mousedown: '+this.oldX+','+this.oldY);
+		evt.stopEvent();
 	},
 	mousemove : function(evt, element) {
 		if (!this.isDrawing) { return; }
@@ -1220,8 +1227,8 @@ var DrawPoint = Ext.extend(DrawBase, {
 		var xy = this.getXY(evt);
 		console.log('mousedown: '+xy[0]+','+xy[1]);
 		var color = '#'+Ext.getCmp('CanvasColor').palette.value;
-		var size = 2;
-		var sizeCmp = Ext.getCmp('CanvasPointSizeGroup');
+		var size = 4;
+		var sizeCmp = Ext.getCmp('CanvasDrawSizeGroup');
 		if (sizeCmp != null && sizeCmp.getValue() != null) {
 			switch (sizeCmp.getValue().value) {
 				case '小': size = 2; break;
@@ -1243,6 +1250,81 @@ var DrawPoint = Ext.extend(DrawBase, {
 		});
 	}
 });
+var EraseRect = Ext.extend(DrawBase, {
+	isErasing : false,
+	isRectShow : false,
+	eraceRect : null,
+	pointList : null,
+	size : null,
+	begin : function() {
+		var div = document.createElement('div');
+		div.id = 'MyCanvasEraceRect';
+		div.style.position = 'absolute';
+		div.style.width = '30px';
+		div.style.height = '30px';
+		div.style.border = '1px dashed red';
+		div.style.display = 'none';
+		this.canvasTemporary.appendChild(div);
+		this.eraceRect = div;
+		this.pointList = [];
+	},
+	end : function() {
+		EraseRect.superclass.end.apply(this, arguments);
+		this.isErasing = false;
+		this.eraceRect = null;
+	},
+	mousedown : function(evt, element) {
+		this.isErasing = true;
+		var xy = this.getXY(evt);
+		this.pointList = [];
+		this.pointList.push(xy);
+		this.context.clearRect(xy[0]-(this.size/2), xy[1]-(this.size/2), this.size, this.size);
+		evt.stopEvent();
+	},
+	mousemove : function(evt, element) {
+		if (!this.isRectShow) {
+			this.isRectShow = true;
+			var size = 30;
+			var sizeCmp = Ext.getCmp('CanvasDrawSizeGroup');
+			if (sizeCmp != null && sizeCmp.getValue() != null) {
+				switch (sizeCmp.getValue().value) {
+					case '小': size = 10; break;
+					case '中': size = 30; break;
+					case '大': size = 60; break;
+				}
+			}
+			this.size = size;
+			this.eraceRect.style.width = this.size + 'px';
+			this.eraceRect.style.height = this.size + 'px';
+			this.eraceRect.style.display = '';
+		}
+		var xy = this.getXY(evt);
+		this.eraceRect.style.left = (xy[0]-(this.size/2))+'px';
+		this.eraceRect.style.top = (xy[1]-(this.size/2))+'px';
+		if (this.isErasing) {
+			this.pointList.push(xy);
+			this.context.clearRect(xy[0]-(this.size/2), xy[1]-(this.size/2), this.size, this.size);
+		}
+	},
+	mouseup : function(evt, element) {
+		if (evt.type == 'mouseout') {
+			this.isRectShow = false;
+			this.eraceRect.style.display = 'none';
+		}
+		if (!this.isErasing) { return; }
+		this.isErasing = false;
+		if (this.pointList.length > 0) {
+			console.log('mouseup: '+this.pointList);
+			sendFigure({
+				type : 'erase',
+				size : this.size,
+				points : [].concat(this.pointList)
+			});
+		}
+	}
+});
+
+//TODO クラス内でDOMオブジェクト保持しているのをやめる（Canvasなど）
 
 })(window);
 </script>

@@ -15,6 +15,8 @@ var http = require('http')
 
 var io = require('socket.io').listen(server);
 
+var dataLogFile = './dataLog.txt';
+
 app.configure(function() {
 	var rootPath = __dirname;
 	//var rootPath = __dirname + '/extjs_publish';
@@ -52,14 +54,25 @@ Queue.prototype = {
 var msgQueue = new Queue(20);
 var figureQueue = new Queue(20);
 
-io.sockets.on('connection', function (socket) {
-	//util.log('io.sockets.clients:'+io.sockets.clients());
-	/*
-	var target = socket;
-	for (var i in target) {
-		util.log(i+' : '+typeof target[i]);
+if (fs.existsSync(dataLogFile)) {
+	var dataStr = fs.readFileSync(dataLogFile, 'utf8');
+	if (dataStr == null || dataStr == '') { return; }
+	var data = JSON.parse(dataStr);
+	if (data.msgQueue) {
+		for (var i=0,l=data.msgQueue.length; i<l; i++) {
+			msgQueue.add(data.msgQueue[i]);
+		}
+		util.log('msgQueue loaded. datasize='+data.msgQueue.length);
 	}
-	*/
+	if (data.figureQueue) {
+		for (var i=0,l=data.figureQueue.length; i<l; i++) {
+			figureQueue.add(data.figureQueue[i]);
+		}
+		util.log('figureQueue loaded. datasize='+data.figureQueue.length);
+	}
+}
+
+io.sockets.on('connection', function (socket) {
 
 	socket.on('chat start', function(data) {
 		//util.log('chat start: ' + JSON.stringify(data));
@@ -166,5 +179,23 @@ io.sockets.on('connection', function (socket) {
 
 });
 
-util.log('server started..');
+process.on('exit', function() {
+	fs.writeFileSync(dataLogFile, JSON.stringify({
+		'msgQueue' : msgQueue.getAll(),
+		'figureQueue' : figureQueue.getAll()
+	}, null, '\t'), 'utf8');
+	var path = fs.realpathSync(dataLogFile);
+	util.log('write data: ' + path);
+	util.log('process exit.');
+});
 
+util.log('server started. enter "exit" to shutdown...');
+
+process.stdin.resume();
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', function (data) {
+	var str = data.trim();
+	if (str == 'exit') {
+		process.exit();
+	}
+});
