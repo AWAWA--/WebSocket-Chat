@@ -655,9 +655,10 @@ Ext.onReady(function() {
 					+ 	' width="'+screen.availWidth+'" height="'+screen.availHeight+'">'
 					+ 	'</canvas>'
 					+ 	'<div id="MyCanvasTemporaryLayer" style="position:absolute;top:0px;left:0px;"></div>'
-					+ 	'<div id="MyCanvasEventHandleLayer" style="position:absolute;top:0px;left:0px;'
-					+ 		'width:'+screen.availWidth+'px;height:'+screen.availHeight+'px;'
-					+ 		'background-color:transparent;"></div>'
+					+ 	'<img id="MyCanvasEventHandleLayer" style="position:absolute;top:0px;left:0px;'
+					+ 		'width:'+screen.availWidth+'px;height:'+screen.availHeight+'px;" '
+					+ 		'src="'+Ext.BLANK_IMAGE_URL+'" '
+					+		'/>'
 					+ '</div>',
 				listeners : {
 					afterrender : function(panel) {
