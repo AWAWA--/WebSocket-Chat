@@ -19,7 +19,6 @@ var dataLogFile = './dataLog.txt';
 
 app.configure(function() {
 	var rootPath = __dirname;
-	//var rootPath = __dirname + '/extjs_publish';
 	util.log('rootPath: '+rootPath);
 	app.use(express.static(rootPath));
 });
@@ -46,6 +45,18 @@ Queue.prototype = {
 			this.queue.shift();
 			//console.log('queue delete. size='+this.queue.length);
 		}
+	},
+	delete : function(item) {
+		var newQueue = this.queue.filter(function(queueItem) {
+			for (var i in item) {
+				if (item[i] != queueItem[i]) {
+					return true;
+				}
+			}
+			return false;
+		});
+		// console.log('queue delete: '+this.queue.length+' -> '+newQueue.length);
+		this.queue = newQueue;
 	},
 	getAll : function() {
 		return [].concat(this.queue);
@@ -105,10 +116,10 @@ io.sockets.on('connection', function (socket) {
 					userList.push(clientMap[i]);
 				}
 				return userList;
-			})()
+			})(),
+			msgList : msgQueue.getAll(),
+			figureList : figureQueue.getAll()
 		});
-		socket.emit('msgLog push', { msgList : msgQueue.getAll() });
-		socket.emit('figureLog push', { figureList : figureQueue.getAll() });
 
 		socket.broadcast.emit('user add', {'users' : userData, reconnect: data.reconnect});
 
@@ -164,6 +175,12 @@ io.sockets.on('connection', function (socket) {
 		socket.on('figure send', function(data) {
 			socket.broadcast.emit('figure push', data);
 			figureQueue.add(data);
+		});
+
+		socket.on('message delete', function(data) {
+			socket.emit('message delete', data);
+			socket.broadcast.emit('message delete', data);
+			msgQueue.delete(data);
 		});
 	});
 

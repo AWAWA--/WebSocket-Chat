@@ -802,17 +802,29 @@ function join(name) {
 		myName = data.myData.name;
 		myHost = data.myData.host;
 		myAddr = data.myData.addr;
+
+		//共有メッセージのリセット
+		Ext.getCmp('MainView').removeAll(true);
+		//共有お絵かきのリセット
+		handleFigure({type : 'clear'})
+		//参加者一覧のリセット
 		userStore.removeAll();
+
+		//参加者一覧のロード
 		userStore.loadData(data);
-		Ext.getCmp('MainMsg').focus();
-	});
-	socket.on('msgLog push', function(data) {
-		//console.log('msg push: '+JSON.stringify(data));
+		//共有メッセージのロード
 		var msgTab = Ext.getCmp('MainView');
 		var msgList = data.msgList;
 		for (var i=0,l=msgList.length;i<l;i++) {
 			msgAdd(msgTab, msgList[i]);
 		}
+		//共有お絵かきのロード
+		var figureList = data.figureList;
+		for (var i=0,l=figureList.length; i<l; i++) {
+			handleFigure(figureList[i]);
+		}
+
+		Ext.getCmp('MainMsg').focus();
 	});
 	socket.on('user add', function(data) {
 		var readResult = userStore.reader.readRecords(data);
@@ -845,16 +857,30 @@ function join(name) {
 		//console.log('callbackFn: '+fn);
 		handleMessage(data, callbackFn);
 	});
+	socket.on('message delete', function(data) {
+		var targetPanel = Ext.getCmp('MainView');
+		var targetItems = targetPanel.items;
+		var removeList = [];
+		// console.log(data);
+		for (var i=0,l=targetItems.length; i<l; i++) {
+			var targetItem = targetItems.get(i);
+			// console.log(targetItem.initialConfig.data);
+			var equals = true;
+			for (var prop in data) {
+				if (data[prop] != targetItem.initialConfig.data[prop]) {
+					equals = false;
+					break;
+				}
+			}
+			if (equals) { removeList.push(targetItem); }
+		}
+		for (var i=0,l=removeList.length; i<l; i++) {
+			targetPanel.remove(removeList[i], true);
+		}
+	});
 	socket.on('figure push', function(data) {
 		console.log('figure push: ');
 		handleFigure(data);
-	});
-	socket.on('figureLog push', function(data) {
-		// console.log('figureLog push: '+data.length);
-		var figureList = data.figureList;
-		for (var i=0,l=figureList.length; i<l; i++) {
-			handleFigure(figureList[i]);
-		}
 	});
 }
 
@@ -916,6 +942,7 @@ function msgAdd(targetPanel, data) {
 			height : '2em'
 		},
 		padding : 5,
+		data : data,
 		items : 
 		[{
 			layout : 'hbox',
@@ -936,24 +963,43 @@ function msgAdd(targetPanel, data) {
 				}
 			},
 			items :
-			[
-				{ 
+			(function() {
+				var items = [];
+				items.push({
 					html : Ext.util.Format.htmlEncode(data.name) 
-				}, { 
+				});
+				items.push({
 					html : 
 						Ext.util.Format.htmlEncode(data.host) 
 						+ '('
 						+ Ext.util.Format.htmlEncode(data.addr)
 						+ ')'
-				}, {
+				});
+				items.push({
 					xtype:'spacer',
 					flex:1
-				}, { 
+				});
+				items.push({
 					html : Ext.util.Format.htmlEncode(
 						Ext.util.Format.date(new Date(data.time),'Y/m/d H:i:s')
 					)
+				});
+				if (data.id == myID) {
+					items.push({
+						xtype : 'button',
+						text : '削除',
+						listeners : {
+							click : function() {
+								socket.emit('message delete', {
+								   	'id' : data.id,
+								   	'time' : data.time
+								});
+							}
+						}
+					});
 				}
-			]
+				return items;
+			})()
 		}, {
 			//height : 50,
 			autoHeight : true,
