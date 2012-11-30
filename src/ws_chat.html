@@ -506,7 +506,8 @@ Ext.onReady(function() {
 	 						listeners : {
 	 							keydown : function(textField, event) {
 	 								if (event.getKey() == 13) {
-	 									Ext.getCmp('sendButton').fireEvent('click');
+	 									var b = Ext.getCmp('sendButton');
+	 									b.fireEvent('click', b, event);
 	 								}
 	 							}
 	 						}
@@ -522,13 +523,14 @@ Ext.onReady(function() {
 					},
 					text : '　送信　',
 					listeners : {
-						click : function() {
+						click : function(button, event) {
 							var text = Ext.getCmp('MainMsg');
 							var msg = text.getValue();
 							if (msg != null && msg.length > 0) {
 								sendMessage({
 									msgTarget : null,
 									isReply : false,
+									effect : event.shiftKey ? 1 : 0,
 									msg : msg
 								});
 								text.setValue('');
@@ -884,16 +886,12 @@ function join(name) {
 	});
 }
 
-function sendMessage(m) {
+function sendMessage(data) {
 	if (socket == null || socket.socket == null || socket.socket.connected == false) {
 		Ext.MessageBox.alert('　', 'サーバに接続していないため、メッセージを送ることができませんでした。');
 		return;
 	}
-	socket.emit('message send', {
-	   	'msgTarget' : ((m.msgTarget != null) ? m.msgTarget : ''),
-	   	'isReply' : m.isReply,
-	   	'msg' : '' + m.msg
-	});
+	socket.emit('message send', data);
 }
 
 function handleMessage(data, callbackFn) {
@@ -1009,7 +1007,23 @@ function msgAdd(targetPanel, data) {
 				height : '1em;',
 				wordBreak : 'break-all'
 			},
-			html : Ext.util.Format.htmlEncode(data.msg)
+			html : (function() {
+				var str = Ext.util.Format.htmlEncode(data.msg);
+				str = str.replace(
+					/(^|\s|\()(https?:\/\/[a-zA-Z0-9\-_.!?~*;:\/\@&=+\$,%#]+)/g,
+					'$1<a target="_blank" href="$2">$2</a>');
+				switch(data.effect) {
+					case 1:
+						str = '<div style="'+
+							'transform-origin:left top;-webkit-transform-origin:left top;'+
+							'transform:scale(0.5,0.5);-webkit-transform:scale(0.5,0.5);'+
+							'">'+str+'</div>';
+						break;
+					default:
+						break;
+				}
+				return str;
+			})()
 		}]
 	});
 	msgPanel.doLayout();
@@ -1031,11 +1045,15 @@ function showDesktopPopup(title, msg, showTime) {
 			title,
 			msg
 		);
+		notify.onclick = function() { 
+			alert(msg);
+			notify.cancel();
+		}
 		if (showTime > 0) {
 			notify.ondisplay = function() {
-   				setTimeout(function() { notify.cancel(); }, 
-   					showTime * 1000
-   				);
+				setTimeout(function() { notify.cancel(); }, 
+					showTime * 1000
+				);
 			};
 		}
 		notify.show();

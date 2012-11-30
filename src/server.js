@@ -65,7 +65,7 @@ Queue.prototype = {
 		return [].concat(this.queue);
 	}
 };
-var msgQueue = new Queue(20);
+var msgQueue = new Queue(35);
 var figureQueue = new Queue(20);
 
 
@@ -167,24 +167,25 @@ io.sockets.on('connection', function (socket) {
 			socket.on('message send', function(data) {
 				var  msgTarget = data.msgTarget;
 				var isReply = data.isReply;
-				var msg = data.msg;
+				var msg = data.msg || '';
 				if (msg.length > 2048) {
-					msg = msg.substring(0, 2048) + '...';
+					msg = msg.substring(0, 2048) + ' ...';
 				}
 
 				var client = clientMap[socket.id];
 
 				var sendMsg = {
 					'isPrivate' : (msgTarget != null && '' != msgTarget),
-					'msgTarget' : msgTarget,
-					'isReply' : isReply,
 					'time' : new Date().getTime(),
 					'id' : client.id,
 					'name' : client.name,
 					'host' : client.host,
 					'addr' : client.addr,
-					'msg' : '' + msg
+					'msg' : msg
 				};
+				for (var i in data) {
+					if(!sendMsg[i]) { sendMsg[i] = data[i]; }
+				}
 
 				socket.emit('message push', sendMsg);
 				if (sendMsg.isPrivate) {
