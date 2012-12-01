@@ -530,7 +530,7 @@ Ext.onReady(function() {
 								sendMessage({
 									msgTarget : null,
 									isReply : false,
-									effect : event.shiftKey ? 1 : 0,
+									effect : event.shiftKey ? 1 : event.altKey ? 2 : 0,
 									msg : msg
 								});
 								text.setValue('');
@@ -1018,6 +1018,9 @@ function msgAdd(targetPanel, data) {
 							'transform-origin:left top;-webkit-transform-origin:left top;'+
 							'transform:scale(0.5,0.5);-webkit-transform:scale(0.5,0.5);'+
 							'">'+str+'</div>';
+						break;
+					case 2:
+						str = '<div style="font-size:2em;">'+str+'</div>';
 						break;
 					default:
 						break;
