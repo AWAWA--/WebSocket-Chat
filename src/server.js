@@ -94,32 +94,30 @@ var figureQueue = new Queue(20);
 //ホスト名を取得するための関数を定義
 var getHostByAddr = (function() {
 	var getHostByAddrJS = path.dirname(__filename) + '/getHostByAddr.js';
-	var defaultFunc = function(address, defaultHostName, callback) {
-		dns.reverse(address, function(err, host) {
-			if (err) {
-				util.log('DNS reverse failed: address='+address+' err='+JSON.stringify(err));
-				callback(defaultHostName);
-				return;
-			}
-			if (host == null || host == '') {
-				callback(defaultHostName);
-			} else {
-				if (host.length == 1) {
-					callback(host[0]);
-				} else {
-					callback(host.toString());
-				}
-			}
-		});
-	};
 	if (fs.existsSync(getHostByAddrJS)) {
-		var dataStr = fs.readFileSync(getHostByAddrJS, 'utf8');
-		if (dataStr != null && dataStr != '') {
-			return eval('('+dataStr+')');
-		}
+		var myModule = require(getHostByAddrJS);
+		return myModule.getHostByAddr;
+	} else {
+		return function(address, defaultHostName, callback) {
+			dns.reverse(address, function(err, host) {
+				if (err) {
+					util.log('DNS reverse failed: address='+address+' err='+JSON.stringify(err));
+					callback(defaultHostName);
+					return;
+				}
+				if (host == null || host == '') {
+					callback(defaultHostName);
+				} else {
+					if (host.length == 1) {
+						callback(host[0]);
+					} else {
+						callback(host.toString());
+					}
+				}
+			});
+		};
 	}
-	return defaultFunc;
-})()
+})();
 
 
 io.sockets.on('connection', function (socket) {
@@ -256,6 +254,11 @@ process.stdin.setEncoding('utf8');
 process.stdin.on('data', function (data) {
 	var str = data.trim();
 	if (str == 'exit') {
-		process.exit();
+		// io.sockets.clients().forEach(function(client) {
+		// 	client.disconnect();
+		// });
+		// io.server.close(function() {
+			process.exit();
+		// });
 	}
 });
