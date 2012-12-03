@@ -74,7 +74,7 @@ var figureQueue = new Queue(20);
 
 
 //ログデータの読み込み
-var dataLogFile = './dataLog.txt';
+var dataLogFile = './dataLog_'+port+'.txt';
 (function() {
 	if (fs.existsSync(dataLogFile)) {
 		var dataStr = fs.readFileSync(dataLogFile, 'utf8');
