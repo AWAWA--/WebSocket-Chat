@@ -5,19 +5,28 @@ var express = require('express')
   , path = require('path')
   , util = require('util');
 
-var http = require('http')
-  , server = http.createServer(app);
 
-// var https = require('https')
-//   , options = {
-// 		key: fs.readFileSync('ssl/privatekey.pem'),
-// 		cert: fs.readFileSync('ssl/certificate.pem')
-// 	}
-//   , server = https.createServer(options, app);
+util.log('argv: ' + process.argv);
+var port = process.argv[2] || 3000;
+util.log('port: ' + port);
+
+
+var server;
+if (port == 443) {
+	var https = require('https');
+	server = https.createServer({
+			key: fs.readFileSync('ssl/privatekey.pem'),
+			cert: fs.readFileSync('ssl/certificate.pem')
+		}, app);
+} else {
+	var http = require('http');
+	server = http.createServer(app);
+}
 
 var io = require('socket.io').listen(server);
+io.set('log level', 1);
 
-var dataLogFile = './dataLog.txt';
+server.listen(port);
 
 app.configure(function() {
 	var rootPath = __dirname;
@@ -25,14 +34,9 @@ app.configure(function() {
 	app.use(express.static(rootPath));
 });
 
-io.set('log level', 1);
-
-util.log('argv: ' + process.argv);
-var port = process.argv[2] || 3000;
-util.log('port: ' + port);
-server.listen(port);
 
 var clientMap = {};
+
 
 //データキューの生成（過去ログとして使用）
 var Queue = function(queueSize) {
@@ -70,6 +74,7 @@ var figureQueue = new Queue(20);
 
 
 //ログデータの読み込み
+var dataLogFile = './dataLog.txt';
 (function() {
 	if (fs.existsSync(dataLogFile)) {
 		var dataStr = fs.readFileSync(dataLogFile, 'utf8');

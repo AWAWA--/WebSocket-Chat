@@ -1043,14 +1043,15 @@ function showDesktopPopup(title, msg, showTime) {
 		window.webkitNotifications &&
 		window.webkitNotifications.checkPermission() == 0
 	) {
+		var notifyMsg = (msg.length > 36) ? (msg.substring(0,35)+'...') : (msg);
 		var notify = window.webkitNotifications.createNotification(
 			'./extjs/resources/images/default/window/icon-info.gif',
 			title,
-			msg
+			notifyMsg
 		);
 		notify.onclick = function() { 
-			alert(msg);
 			notify.cancel();
+			alert(notifyMsg);
 		}
 		if (showTime > 0) {
 			notify.ondisplay = function() {
