@@ -9,7 +9,7 @@ var childProcess = require('child_process')
 
 exports.getHostByAddr = function(addr, defaultHostName, callback) {
 	var logFile = addr + '.txt';
-	var getHostName = function() {
+	function getHostName() {
 		var hostName = null;
 		try {
 			var dataStr = fs.readFileSync(logFile, 'ascii');
@@ -31,6 +31,7 @@ exports.getHostByAddr = function(addr, defaultHostName, callback) {
 					break;
 				}
 			};
+			// util.log('unique='+unique+' group='+group);
 			if (unique != null || group != null) {
 				hostName = unique + '.' + group;
 			}
@@ -39,7 +40,7 @@ exports.getHostByAddr = function(addr, defaultHostName, callback) {
 			return null;
 		}
 		return hostName;
-	};
+	}
 
 	if (fs.existsSync(logFile)) {
 		var hostName = getHostName();
@@ -63,6 +64,6 @@ exports.getHostByAddr = function(addr, defaultHostName, callback) {
 				return;
 			}
 		}
-		callback(hostName);
+		callback(defaultHostName);
 	});
 };
