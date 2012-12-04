@@ -739,6 +739,18 @@ function join(name) {
 		showInitDialog();
 		return false;
 	}
+	if (
+		window.webkitNotifications &&
+		window.webkitNotifications.checkPermission() != 0
+	) {
+		Ext.MessageBox.show({
+	 	   title:'情報',
+	 	   msg: '通知機能が有効になっていません。<br />最初に画面左上の「デスクトップ通知を許可」ボタンを押してください。',
+	 	   buttons: Ext.Msg.OK,
+	 	   closable : false,
+	 	   icon: Ext.MessageBox.INFO
+	 	});
+	}
 	var path = location.protocol+'//'+location.host+'/';
 	console.log('path: '+path);
 	socket = io.connect(path, {
@@ -760,11 +772,13 @@ function join(name) {
 		console.log('reconnect '+arguments.length);
 		socket.emit('chat start', {name : name, reconnect : true});
 	});
-	socket.on('disconnect', function() {
+	socket.on('disconnect', function(event) {
 		console.log('disconnect:'+JSON.stringify(arguments));
-		// Ext.MessageBox.alert(
-		// 	' ',
-		// 	'接続が切れました。再接続するにはブラウザをリロードしてください。');
+		if (event == 'booted') {
+			Ext.MessageBox.alert(
+				' ',
+				'接続が切れました。再接続するにはブラウザをリロードしてください。');
+		}
 	});
 	socket.on('connect_failed', function() {
 		console.log('connect_failed:'+JSON.stringify(arguments));

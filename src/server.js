@@ -258,12 +258,17 @@ process.stdin.resume();
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', function (data) {
 	var str = data.trim();
-	if (str == 'exit') {
-		// io.sockets.clients().forEach(function(client) {
-		// 	client.disconnect();
-		// });
-		// io.server.close(function() {
-			process.exit();
-		// });
+	switch (str) {
+		case 'exit':
+			io.sockets.clients().forEach(function(client) {
+				client.disconnect();
+			});
+		case 'quit':
+			// io.server.close(function() {
+				process.exit();
+			// });
+			break;
+		default:
+			break;
 	}
 });
