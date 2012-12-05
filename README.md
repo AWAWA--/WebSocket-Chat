@@ -22,5 +22,5 @@ WebSocketを使ったチャットのサンプル
   
 ####【実行方法】
  * 事前準備として、src/extjs配下にext-3.4.0.zipを展開（src/extjs/ext-all.jsとなるように）
- * 今ソースから >node src\server.js で起動（第一引数でポート番号を指定可能）
+ * コンソールから >node src\server.js で起動（第一引数でポート番号を指定可能）
  * ブラウザから http://localhost:3000/ws_chat.html でアクセス
