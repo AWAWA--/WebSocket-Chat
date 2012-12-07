@@ -304,24 +304,9 @@ Ext.onReady(function() {
 	var toolBar = new Ext.Toolbar({
 		autoHeight : true,
 		items: [
-			{
-				text: 'デスクトップ通知を許可(GoogleChromeのみ)',
-				listeners: {
-					click : function() {
-						if (window.webkitNotifications) {
-							console.log('permission:'+window.webkitNotifications.checkPermission());
-							if (window.webkitNotifications.checkPermission() != 0) {
-								window.webkitNotifications.requestPermission(function() {
-									console.log('permission:'+window.webkitNotifications.checkPermission());
-								});
-							}
-						}
-					}
-				}
-			},
 			'-',
 			{
-				text : '設定',
+				text : '　設定　',
 				listeners: {
 					click : function() {
 						configDialog.show();
@@ -330,34 +315,42 @@ Ext.onReady(function() {
 			},
 			'-',
 			{
-				text : 'ヘルプ',
+				text : '　ヘルプ　',
 				listeners: {
 					click : function() {
 						Ext.MessageBox.alert(
-							' ',
-							'・二人きりで会話したい場合は、UserListから該当のユーザをクリック！'
+							'ヘルプ',
+							'・二人きりで会話したい場合は、参加者一覧から該当のユーザ行のアイコンをクリック！'
 							+'<br />・ブラウザはIE9でも動きますが、GoogleChrome最新版がお勧め'
-							+'<br />・GoogleChromeの場合は最初に「デスクトップ通知を許可」を押してください'
 							+'<br />・気に入ったら美味しいビールおごって♪'
 						);
 					}
 				}
 			},
-			'->',
+			'-',
 			{
 				text: 'ログアウト',
 				listeners: {
 					click : function() {
-						Ext.MessageBox.alert(
-							' ',
-							'ログアウトしました。再接続するにはブラウザをリロードしてください。');
-						if (socket != null) { 
-							socket.disconnect();
-							//socket = null;
-						}
+						Ext.MessageBox.show({
+							buttons : Ext.MessageBox.OKCANCEL,
+							title : '確認',
+							msg : 'ログアウトしますか？',
+							fn : function(buttonId) {
+								if (buttonId == 'ok' && socket != null) { 
+									socket.disconnect();
+									//socket = null;
+									Ext.MessageBox.alert(
+										'',
+										'ログアウトしました。再接続するにはブラウザをリロードしてください。'
+									);
+								}
+							}
+						});
 					}
 				}
-			}
+			},
+			'-'
 		]
 	});
 	
@@ -745,9 +738,15 @@ function join(name) {
 	) {
 		Ext.MessageBox.show({
 	 	   title:'情報',
-	 	   msg: '通知機能が有効になっていません。<br />最初に画面左上の「デスクトップ通知を許可」ボタンを押してください。',
+	 	   msg: '通知機能が有効になっていません。<br />デスクトップ通知を許可してください。',
 	 	   buttons: Ext.Msg.OK,
 	 	   closable : false,
+	 	   fn: function(button, text) {
+				console.log('permission:'+window.webkitNotifications.checkPermission());
+				window.webkitNotifications.requestPermission(function() {
+					console.log('permission:'+window.webkitNotifications.checkPermission());
+				});
+	 	   } ,
 	 	   icon: Ext.MessageBox.INFO
 	 	});
 	}
