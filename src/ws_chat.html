@@ -306,6 +306,26 @@ Ext.onReady(function() {
 		items: [
 			'-',
 			{
+				text : 'デスクトップ通知を許可',
+				listeners : {
+					click : function() {
+						if (!window.webkitNotifications) {
+							Ext.MessageBox.alert(
+								'　',
+								'お使いのブラウザはデスクトップ通知に対応していません。'
+								+'<br />GoogleChromeの最新版をお使いください。'
+							);
+						} else if (window.webkitNotifications.checkPermission() != 0) {
+							console.log('permission:'+window.webkitNotifications.checkPermission());
+							window.webkitNotifications.requestPermission(function() {
+								console.log('permission:'+window.webkitNotifications.checkPermission());
+							});
+						}
+					}
+				}
+			},
+			'-',
+			{
 				text : '　設定　',
 				listeners: {
 					click : function() {
@@ -908,6 +928,26 @@ function sendMessage(data) {
 }
 
 function handleMessage(data, callbackFn) {
+	var tabID;
+	var msgPanel;
+	if (data.isPrivate) {
+		var openID = 
+			(data.msgTarget == myID) ? data.id : data.msgTarget;
+		var escapedOpenID = Ext.util.Format.htmlEncode(openID);
+		tabID = 'PrivateTab_' + escapedOpenID;
+		msgPanel = Ext.getCmp('PrivateView_' + escapedOpenID);
+		if (msgPanel == null) {
+			var record = userStore.query('id', openID);
+			if (record != null && record.length > 0) {
+				addPrivateTab(record.get(0).data);
+			}
+			msgPanel = Ext.getCmp('PrivateView_' + escapedOpenID);
+		}
+	} else {
+		tabID = 'MainTab';
+		msgPanel = Ext.getCmp('MainView');
+	}
+	msgAdd(msgPanel, data);
 	if (data.id != myID) {
 		if (data.isPrivate && callbackFn != null) {
 			callbackFn('private message catched.');
@@ -921,28 +961,11 @@ function handleMessage(data, callbackFn) {
 				data.msg,
 				(data.isPrivate ?
 					config.notification_privateMsgTime : 
-					config.notification_publicMsgTime)
+					config.notification_publicMsgTime),
+				tabID
 			);
 		}
 	}
-
-	var msgTab;
-	if (data.isPrivate) {
-		var openID = 
-			(data.msgTarget == myID) ? data.id : data.msgTarget;
-		var tabID = Ext.util.Format.htmlEncode(openID);
-		msgTab = Ext.getCmp('PrivateView_' + tabID);
-		if (msgTab == null) {
-			var record = userStore.query('id', openID);
-			if (record != null && record.length > 0) {
-				addPrivateTab(record.get(0).data);
-			}
-			msgTab = Ext.getCmp('PrivateView_' + tabID);
-		}
-	} else {
-		msgTab = Ext.getCmp('MainView');
-	}
-	msgAdd(msgTab, data);
 }
 
 function msgAdd(targetPanel, data) {
@@ -1051,7 +1074,7 @@ function msgAdd(targetPanel, data) {
 	targetPanel.doLayout();
 }
 
-function showDesktopPopup(title, msg, showTime) {
+function showDesktopPopup(title, msg, showTime, focusTabID) {
 	if (
 		window.webkitNotifications &&
 		window.webkitNotifications.checkPermission() == 0
@@ -1064,6 +1087,10 @@ function showDesktopPopup(title, msg, showTime) {
 		);
 		notify.onclick = function() { 
 			notify.cancel();
+			if (focusTabID != null) {
+				var tabPanel = Ext.getCmp('tabPanel');
+				tabPanel.setActiveTab(focusTabID);
+			}
 			alert(notifyMsg);
 		}
 		if (showTime > 0) {
