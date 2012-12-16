@@ -32,6 +32,7 @@ var socket = null;
 var connected = false;
 var config = {};
 var configTmp = null;
+var privateMsgLog = [];
 var myID, myName, myHost, myAddr;
 var userStore = new Ext.data.JsonStore({
 	'autoDestroy': true,
@@ -46,6 +47,9 @@ var userStore = new Ext.data.JsonStore({
 });
 
 Ext.EventManager.on(window, 'unload', function() {
+	if (myName != null && privateMsgLog.length > 0) {
+		localStorage['privateMsgLog_'+myName] = JSON.stringify(privateMsgLog);
+	}
 	if (socket != null) {
 		socket.disconnect();
 		socket = null;
@@ -714,6 +718,22 @@ Ext.onReady(function() {
 					}
 				}
 			}]
+		},{
+			id : 'PrivateMsgLogTab',
+			title	: 'DM過去ログ',
+			layout : 'border',
+			closable : false,
+			items : [{
+				id : 'PrivateMsgLogView',
+				title : 'プライベートメッセージの過去ログ（読み取り専用）',
+				region:'center',
+				autoScroll : true,
+				bodyStyle : {
+					backgroundColor : 'transparent !important'
+				},
+				items : [
+				]
+			}]
 		}]
 	});
 
@@ -770,6 +790,7 @@ function join(name) {
 	 	   icon: Ext.MessageBox.INFO
 	 	});
 	}
+
 	var path = location.protocol+'//'+location.host+'/';
 	console.log('path: '+path);
 	socket = io.connect(path, {
@@ -857,6 +878,22 @@ function join(name) {
 		var figureList = data.figureList;
 		for (var i=0,l=figureList.length; i<l; i++) {
 			handleFigure(figureList[i]);
+		}
+
+		//プライベートメッセージ読み込み
+		if (localStorage['privateMsgLog_'+myName]) {
+			try {
+				var objStr = localStorage['privateMsgLog_'+myName];
+				var obj = JSON.parse(objStr);
+				if (obj instanceof Array) {
+					privateMsgLog = obj;
+					// console.log(objStr);
+				}
+			} catch (e) { console.log(e); }
+		}
+		var msgPanel = Ext.getCmp('PrivateMsgLogView');
+		for (var i=0,l=privateMsgLog.length; i<l; i++) {
+			msgAdd(msgPanel, privateMsgLog[i]);
 		}
 
 		Ext.getCmp('MainMsg').focus();
@@ -966,6 +1003,29 @@ function handleMessage(data, callbackFn) {
 			);
 		}
 	}
+	if (data.isPrivate) {
+		msgAdd(Ext.getCmp('PrivateMsgLogView'), data);
+		var LOG_LIMIT = 100;
+		if (privateMsgLog.length >= LOG_LIMIT) {
+			var delCount = privateMsgLog.length - LOG_LIMIT + 1;
+			var tmpArray = [];
+			for (var i=0,l=privateMsgLog.length; i<l; i++) {
+				var oldData = privateMsgLog[i];
+				if (oldData.favorite || delCount == 0) {
+					tmpArray.push(oldData);
+					continue;
+				}
+				delCount--;
+			}
+			privateMsgLog = tmpArray;
+		}
+		privateMsgLog.push(data);
+		if (privateMsgLog.length > LOG_LIMIT) {
+			Ext.MessageBox.alert('警告',
+				'過去ログの最大保存数をオーバーしています。不要なお気に入りを解除してください。<br/>'
+				+ '最大保存数：'+LOG_LIMIT+' 現在の保存対象ログ数:'+privateMsgLog.length);
+		}
+	}
 }
 
 function msgAdd(targetPanel, data) {
@@ -1018,7 +1078,7 @@ function msgAdd(targetPanel, data) {
 						Ext.util.Format.date(new Date(data.time),'Y/m/d H:i:s')
 					)
 				});
-				if (data.id == myID) {
+				if (data.id == myID　&& !data.isPrivate) {
 					items.push({
 						xtype : 'button',
 						text : '削除',
@@ -1028,6 +1088,23 @@ function msgAdd(targetPanel, data) {
 								   	'id' : data.id,
 								   	'time' : data.time
 								});
+							}
+						}
+					});
+				}
+				if (targetPanel.getId() == 'PrivateMsgLogView') {
+					items.push({
+						xtype : 'button',
+						text : !!data.favorite ? 'お気に入り解除' : 'お気に入り追加',
+						enableToggle : true,
+						pressed : !!data.favorite,
+						toggleHandler : function(button, pushed) {
+							if (pushed) {
+								data.favorite = true;
+								button.setText('お気に入り解除');
+							} else {
+								data.favorite = false;
+								button.setText('お気に入り追加');
 							}
 						}
 					});
@@ -1052,7 +1129,7 @@ function msgAdd(targetPanel, data) {
 					case 1:
 						str = '<div style="'+
 							'transform-origin:left top;-webkit-transform-origin:left top;-moz-transform-origin:left top;-ms-transform-origin:left top;-o-transform-origin:left top;'+
-							'transform:scale(0.5,0.5);-webkit-transform:scale(0.5,0.5);-moz-transform:scale(0.5,0.5);-ms-transform:scale(0.5,0.5);-o-transform:scale(0.5,0.5);'+
+							'transform:scale(0.6,0.6);-webkit-transform:scale(0.6,0.6);-moz-transform:scale(0.6,0.6);-ms-transform:scale(0.6,0.6);-o-transform:scale(0.6,0.6);'+
 							'">'+str+'</div>';
 						break;
 					case 2:

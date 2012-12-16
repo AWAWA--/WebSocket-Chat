@@ -70,7 +70,7 @@ Queue.prototype = {
 	}
 };
 var msgQueue = new Queue(35);
-var figureQueue = new Queue(20);
+var figureQueue = new Queue(35);
 
 
 //ログデータの読み込み
@@ -230,13 +230,15 @@ io.sockets.on('connection', function (socket) {
 		});
 	});
 
-	socket.on('disconnect', function() {
+	socket.on('disconnect', function(event) {
 		//console.log(JSON.stringify(arguments));
 		var client = clientMap[socket.id];
 		if (client) {
 			util.log('<-> del connection: '+JSON.stringify(client));
 			delete clientMap[socket.id];
-			socket.broadcast.emit('user delete', {'users' : client});
+			if (event == 'booted') {
+				socket.broadcast.emit('user delete', {'users' : client});
+			}
 		}
 	});
 
