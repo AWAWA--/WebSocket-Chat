@@ -4,7 +4,16 @@
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 	<meta http-equiv="X-UA-Compatible" content="IE=edge" />
 	<title>ws_chat</title>
-	<link rel="stylesheet" type="text/css" href="extjs/resources/css/ext-all.css"/> 
+	<link rel="stylesheet" type="text/css" href="extjs/resources/css/ext-all-notheme.css"/>
+	<script type="text/javascript">
+		var theme = 'blue';
+		var reg = /theme=([a-zA-Z]+)/;
+		var search = location.search || '';
+		if (reg.test(search)) {
+			theme = search.match(reg)[1];
+		}
+		document.write('<link rel="stylesheet" type="text/css" href="extjs/resources/css/xtheme-'+theme+'.css"/>');
+	</script>
 	<script type="text/javascript" src="extjs/adapter/ext/ext-base.js"></script> 
 	<script type="text/javascript" src="extjs/ext-all.js"></script> 
 	<script type="text/javascript" src="socket.io/socket.io.js"></script>
