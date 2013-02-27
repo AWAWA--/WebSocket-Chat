@@ -26,13 +26,21 @@ if (port == 443) {
 var io = require('socket.io').listen(server);
 io.set('log level', 1);
 
-server.listen(port);
-
+app.get('/command/shutdown', function(req, res) {
+	if (req.connection.remoteAddress != '127.0.0.1') {
+		res.send('NG');
+		return;
+	}
+	res.send('OK');
+	process.exit();
+});
 app.configure(function() {
 	var rootPath = __dirname;
 	util.log('rootPath: '+rootPath);
 	app.use(express.static(rootPath));
 });
+
+server.listen(port);
 
 
 var clientMap = {};
@@ -244,13 +252,20 @@ io.sockets.on('connection', function (socket) {
 
 });
 
-process.on('exit', function() {
+function writeDataLog() {
 	fs.writeFileSync(dataLogFile, JSON.stringify({
 		'msgQueue' : msgQueue.getAll(),
 		'figureQueue' : figureQueue.getAll()
 	}, null, '\t'), 'utf8');
 	var path = fs.realpathSync(dataLogFile);
 	util.log('write data: ' + path);
+}
+
+var writeDataLogTimer = setInterval(writeDataLog, 5*60*1000);
+
+process.on('exit', function() {
+	clearInterval(writeDataLogTimer);
+	writeDataLog();
 	util.log('process exit.');
 });
 
