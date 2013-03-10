@@ -13,14 +13,16 @@ WebSocketを使ったチャットのサンプル
 * Node.js v0.8.14  
 * Socket.IO v0.9.11  
 * Express v3.0.1  
+* jayschema v0.1.5  
 * ExtJS v3.4.0  
   
 ####【ブラウザ】
-* GoogleChrome 23（推奨）  
-* Firefox16  
-* IE9  
+* GoogleChrome 23以降（推奨）  
+* Firefox16以降  
+* IE9以降  
   
 ####【実行方法】
- * 事前準備として、src/extjs配下にext-3.4.0.zipを展開（src/extjs/ext-all.jsとなるように）
+ * Node.jsをインストールし、上記環境で書いた必須モジュールを追加
+ * src/extjs配下にext-3.4.0.zipを展開（src/extjs/ext-all.jsとなるように）
  * コンソールから >node src\server.js で起動（第一引数でポート番号を指定可能）
  * ブラウザから http://localhost:3000/ws_chat.html でアクセス

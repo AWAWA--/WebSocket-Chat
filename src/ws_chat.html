@@ -1132,7 +1132,7 @@ function msgAdd(targetPanel, data) {
 				wordBreak : 'break-all'
 			},
 			html : (function() {
-				var str = Ext.util.Format.htmlEncode(data.msg);
+				var str = Ext.util.Format.htmlEncode(''+data.msg);
 				str = str.replace(
 					/(^|\s|\()(https?:\/\/[a-zA-Z0-9\-_.!?~*;:\/\@&=+\$,%#]+)/g,
 					'$1<a target="_blank" href="$2">$2</a>');

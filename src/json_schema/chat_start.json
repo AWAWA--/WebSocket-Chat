@@ -1,0 +1,14 @@
+{
+	"type": "object",
+	"properties": {
+		"name": {
+			"type": "string",
+			"maxLength": 256
+		},
+		"reconnect": {
+			"type": "boolean"
+		}
+	},
+	"required": [ "name" ],
+	"additionalProperties": false
+}

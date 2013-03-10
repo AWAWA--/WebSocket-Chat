@@ -1,0 +1,23 @@
+{
+	"type": "object",
+	"properties": {
+		"msgTarget": {
+			"type": [ "string", "null" ],
+			"maxLength": 256
+		},
+		"isReply": {
+			"type": "boolean"
+		},
+		"effect": {
+			"type": "integer",
+			"minimum": 0,
+			"maximum": 99
+		},
+		"msg": {
+			"type": "string",
+			"maxLength": 4096
+		}
+	},
+	"required": [ "msg" ],
+	"additionalProperties": false
+}

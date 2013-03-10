@@ -3,7 +3,8 @@ var express = require('express')
   , dns = require('dns')
   , fs = require('fs')
   , path = require('path')
-  , util = require('util');
+  , util = require('util')
+  , JaySchema = require('jayschema');
 
 
 util.log('argv: ' + process.argv);
@@ -133,13 +134,42 @@ var getHostByAddr = (function() {
 })();
 
 
+//JSONのバリデート関数
+var jsonValidate = (function() {
+	//JSONスキーマのロード
+	var jsonSchema = new JaySchema();
+	var rootPath = path.join(__dirname, 'json_schema');
+	var files = fs.readdirSync(rootPath);
+	var reg = /^(.+)\.json$/;
+	for (var i=0,l=files.length; i<l; i++) {
+		var fileName = files[i];
+		if (!reg.test(fileName)) { continue; }
+		jsonSchema.register(
+			eval('('+fs.readFileSync(path.join(rootPath, fileName))+')'),
+			fileName.match(reg)[1]  //.jsonを除くファイル名をIDとして登録
+		);
+	}
+	return function(socket, id, instance) {
+		var validateResult = jsonSchema.validate(instance, id);
+		if (validateResult.length == 0) {
+			// console.log('validation ok: address='+socket.handshake.address.address+' id='+id);
+			return true;
+		} else {
+			console.warn('validation error: address='+socket.handshake.address.address+' id='+id+' result='+JSON.stringify(validateResult));
+			return false;
+		}
+	};
+})();
+
+
 io.sockets.on('connection', function (socket) {
 
 	socket.on('chat start', function(data) {
+		if (!jsonValidate(socket, 'chat_start', data)) { return; }
 		var address = socket.handshake.address.address;
 		getHostByAddr(address, '****', function(hostName) {
 			//util.log('chat start: ' + JSON.stringify(data));
-			var userName = data.name;
+			var userName = '' + data.name;
 			if (userName.length > 100) {
 				userName = userName.substring(0, 100) + '...';
 			}
@@ -173,30 +203,33 @@ io.sockets.on('connection', function (socket) {
 				figureList : figureQueue.getAll()
 			});
 
-			socket.broadcast.emit('user add', {'users' : userData, reconnect: data.reconnect});
+			var reconnect = false;
+			if (data.reconnect) { reconnect = true; }
+			socket.broadcast.emit('user add', {'users' : userData, 'reconnect' : reconnect });
 
 			socket.on('message send', function(data) {
+				if (!jsonValidate(socket, 'message_send', data)) { return; }
 				var  msgTarget = data.msgTarget;
 				var isReply = data.isReply;
-				var msg = data.msg || '';
+				var msg = '' + data.msg;
 				if (msg.length > 2048) {
 					msg = msg.substring(0, 2048) + ' ...';
 				}
 
 				var client = clientMap[socket.id];
+				if (client == null) { return; }
 
 				var sendMsg = {
+					'msgTarget' : msgTarget,
 					'isPrivate' : (msgTarget != null && '' != msgTarget),
 					'time' : new Date().getTime(),
 					'id' : client.id,
 					'name' : client.name,
 					'host' : client.host,
 					'addr' : client.addr,
+					'effect' : data.effect,
 					'msg' : msg
 				};
-				for (var i in data) {
-					if(!sendMsg[i]) { sendMsg[i] = data[i]; }
-				}
 
 				socket.emit('message push', sendMsg);
 				if (sendMsg.isPrivate) {
@@ -226,11 +259,13 @@ io.sockets.on('connection', function (socket) {
 			});
 
 			socket.on('figure send', function(data) {
+				if (!data) { return; } //TODO jsonValidate
 				socket.broadcast.emit('figure push', data);
 				figureQueue.add(data);
 			});
 
 			socket.on('message delete', function(data) {
+				if (!jsonValidate(socket, 'message_delete', data)) { return; }
 				socket.emit('message delete', data);
 				socket.broadcast.emit('message delete', data);
 				msgQueue.delete(data);
@@ -244,28 +279,30 @@ io.sockets.on('connection', function (socket) {
 		if (client) {
 			util.log('<-> del connection: '+JSON.stringify(client));
 			delete clientMap[socket.id];
-			if (event == 'booted') {
+			//if (event == 'booted') {
 				socket.broadcast.emit('user delete', {'users' : client});
-			}
+			//}
 		}
 	});
 
 });
 
-function writeDataLog() {
+function writeDataLog(log) {
 	fs.writeFileSync(dataLogFile, JSON.stringify({
 		'msgQueue' : msgQueue.getAll(),
 		'figureQueue' : figureQueue.getAll()
 	}, null, '\t'), 'utf8');
 	var path = fs.realpathSync(dataLogFile);
-	util.log('write data: ' + path);
+	if (log) {
+		util.log('write data: ' + path);
+	}
 }
 
 var writeDataLogTimer = setInterval(writeDataLog, 5*60*1000);
 
 process.on('exit', function() {
 	clearInterval(writeDataLogTimer);
-	writeDataLog();
+	writeDataLog(true);
 	util.log('process exit.');
 });
 
