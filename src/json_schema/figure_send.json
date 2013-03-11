@@ -79,6 +79,14 @@
 			},
 			"required": [ "type", "size", "points" ],
 			"additionalProperties": false
+		},
+		{
+			"type": "object",
+			"properties": {
+				"type": {
+					"enum": [ "clear" ]
+				}
+			}
 		}
 	]
 }
