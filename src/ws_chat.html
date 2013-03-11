@@ -1096,7 +1096,6 @@ function msgAdd(targetPanel, data) {
 						listeners : {
 							click : function() {
 								socket.emit('message delete', {
-								   	'id' : data.id,
 								   	'time' : data.time
 								});
 							}

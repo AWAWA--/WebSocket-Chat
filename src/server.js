@@ -156,6 +156,7 @@ var jsonValidate = (function() {
 			return true;
 		} else {
 			console.warn('validation error: address='+socket.handshake.address.address+' id='+id+' result='+JSON.stringify(validateResult));
+			// console.warn(JSON.stringify(instance));
 			return false;
 		}
 	};
@@ -259,16 +260,22 @@ io.sockets.on('connection', function (socket) {
 			});
 
 			socket.on('figure send', function(data) {
-				if (!data) { return; } //TODO jsonValidate
+				if (!jsonValidate(socket, 'figure_send', data)) { return; }
 				socket.broadcast.emit('figure push', data);
 				figureQueue.add(data);
 			});
 
 			socket.on('message delete', function(data) {
 				if (!jsonValidate(socket, 'message_delete', data)) { return; }
-				socket.emit('message delete', data);
-				socket.broadcast.emit('message delete', data);
-				msgQueue.delete(data);
+				var client = clientMap[socket.id];
+				if (client == null) { return; }
+				var sendData = {
+					"id": client.id,
+					"time": data.time
+				};
+				socket.emit('message delete', sendData);
+				socket.broadcast.emit('message delete', sendData);
+				msgQueue.delete(sendData);
 			});
 		});
 	});

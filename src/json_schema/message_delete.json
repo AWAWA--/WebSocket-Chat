@@ -1,14 +1,10 @@
 {
 	"type": "object",
 	"properties": {
-		"id": {
-			"type": "string",
-			"maxLength": 256
-		},
 		"time": {
 			"type": "integer"
 		}
 	},
-	"required": [ "id", "time" ],
+	"required": [ "time" ],
 	"additionalProperties": false
 }

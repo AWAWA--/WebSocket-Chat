@@ -1,0 +1,84 @@
+{
+	"type": "object",
+	"oneOf": [
+		{
+			"type": "object",
+			"properties": {
+				"type": {
+					"enum": [ "line" ]
+				},
+				"color": {
+					"type": "string",
+					"pattern": "^#[0-9a-fA-F]{6}$"
+				},
+				"width": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 99
+				},
+				"paths": {
+					"type": "array",
+					"minItems": 1,
+					"items": {
+						"type": "array",
+						"minItems": 2,
+						"maxItems": 2,
+						"items": { "type": "integer" }
+					}
+				}
+			},
+			"required": [ "type", "color", "width", "paths" ],
+			"additionalProperties": false
+		},
+		{
+			"type": "object",
+			"properties": {
+				"type": {
+					"enum": [ "point" ]
+				},
+				"color": {
+					"type": "string",
+					"pattern": "^#[0-9a-fA-F]{6}$"
+				},
+				"size": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 99
+				},
+				"paths": {
+					"type": "array",
+					"minItems": 2,
+					"maxItems": 2,
+					"items": { "type": "integer" }
+				}
+			},
+			"required": [ "type", "color", "size", "paths" ],
+			"additionalProperties": false
+		},
+		{
+			"type": "object",
+			"properties": {
+				"type": {
+					"enum": [ "erase" ]
+				},
+				"size": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 9999
+				},
+				"points": {
+					"type": "array",
+					"minItems": 1,
+					"items": {
+						"type": "array",
+						"minItems": 2,
+						"maxItems": 2,
+						"items": { "type": "integer" }
+					}
+				}
+			},
+			"required": [ "type", "size", "points" ],
+			"additionalProperties": false
+		}
+	]
+}
