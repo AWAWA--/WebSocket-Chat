@@ -86,7 +86,9 @@
 				"type": {
 					"enum": [ "clear" ]
 				}
-			}
+			},
+			"required": [ "type" ],
+			"additionalProperties": false
 		}
 	]
 }
