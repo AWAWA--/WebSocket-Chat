@@ -59,7 +59,7 @@ Queue.prototype = {
 		this.queue.push(item);
 		while (this.queue.length > this.size) {
 			this.queue.shift();
-			//console.log('queue delete. size='+this.queue.length);
+			//util.log('queue delete. size='+this.queue.length);
 		}
 	},
 	delete : function(item) {
@@ -71,7 +71,7 @@ Queue.prototype = {
 			}
 			return false;
 		});
-		// console.log('queue delete: '+this.queue.length+' -> '+newQueue.length);
+		// util.log('queue delete: '+this.queue.length+' -> '+newQueue.length);
 		this.queue = newQueue;
 	},
 	getAll : function() {
@@ -152,11 +152,11 @@ var jsonValidate = (function() {
 	return function(socket, id, instance) {
 		var validateResult = jsonSchema.validate(instance, id);
 		if (validateResult.length == 0) {
-			// console.log('validation ok: address='+socket.handshake.address.address+' id='+id);
+			// util.log('validation ok: address='+socket.handshake.address.address+' id='+id);
 			return true;
 		} else {
-			console.warn('validation error: address='+socket.handshake.address.address+' id='+id+' result='+JSON.stringify(validateResult));
-			// console.warn(JSON.stringify(instance));
+			util.log('validation error: address='+socket.handshake.address.address+' schema='+id+' result='+JSON.stringify(validateResult));
+			// util.log(JSON.stringify(instance));
 			return false;
 		}
 	};
@@ -241,7 +241,7 @@ io.sockets.on('connection', function (socket) {
 							callbackCatched = true;
 						});
 						setTimeout(function() {
-							//console.log('callbackCatched:'+callbackCatched);
+							//util.log('callbackCatched:'+callbackCatched);
 							if (!callbackCatched) {
 								socket.emit('error push', {
 									errorID : 'PRIVATEMSG_CALLBACK_UNCATCHED'
@@ -281,7 +281,7 @@ io.sockets.on('connection', function (socket) {
 	});
 
 	socket.on('disconnect', function(event) {
-		//console.log(JSON.stringify(arguments));
+		//util.log(JSON.stringify(arguments));
 		var client = clientMap[socket.id];
 		if (client) {
 			util.log('<-> del connection: '+JSON.stringify(client));
