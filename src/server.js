@@ -2,6 +2,7 @@ var express = require('express')
   , app = express()
   , dns = require('dns')
   , fs = require('fs')
+  , os = require('os')
   , path = require('path')
   , util = require('util')
   , JaySchema = require('jayschema');
@@ -27,6 +28,9 @@ if (port == 443) {
 var io = require('socket.io').listen(server);
 io.set('log level', 1);
 
+app.get('/command/ping', function(req, res) {
+	res.send('OK');
+});
 app.get('/command/shutdown', function(req, res) {
 	if (req.connection.remoteAddress != '127.0.0.1') {
 		res.send('NG');
@@ -35,13 +39,65 @@ app.get('/command/shutdown', function(req, res) {
 	res.send('OK');
 	process.exit();
 });
+
+app.get('/ws_chat.manifest', (function() {
+	var manifestData = '';
+	var reg = /^(.+)\.manifest$/;
+	var eol = os.EOL;
+	function write(str) {
+		manifestData += str;
+	}
+	function writeCacheEntry(dir) {
+		var rootPath = path.join(__dirname, dir);
+		var files = fs.readdirSync(rootPath);
+		for (var i=0,l=files.length; i<l; i++) {
+			var fileName = files[i];
+			if (reg.test(fileName)) { continue; }
+			var stats = fs.statSync(path.join(rootPath, fileName));
+			if (stats.isDirectory()) {
+				writeCacheEntry(dir + '/' + fileName);
+				continue;
+			}
+			write(dir+'/'+fileName + eol);
+		}
+	}
+	write('CACHE MANIFEST' + eol);
+	write('CACHE:' + eol);
+	writeCacheEntry('.');
+	write('./socket.io/socket.io.js' + eol);
+	write(eol);
+	write('NETWORK:' + eol);
+	write('*' + eol);
+	write(eol);
+	return function(req, res) {
+		// util.log(JSON.stringify(req.headers));
+		var ifModifiedSince = req.headers['if-modified-since'];
+		var nowGMTString = new Date().toGMTString();
+		if (ifModifiedSince) {
+			var date = Date.parse(ifModifiedSince);
+			var nowDate = Date.parse(nowGMTString);
+			// util.log(new Date(date) + ' :: ' + new Date(nowDate));
+			if ((nowDate - date) < 5*60*1000) {
+				res.statusCode = 304;
+				res.end();
+				return;
+			}
+		}
+		res.writeHead(200, {
+			'Content-Type': 'text/cache-manifest',
+			'Last-Modified' : nowGMTString
+		});
+		res.write(manifestData);
+		res.write('#' + new Date() + eol);
+		res.end();
+	};
+})());
+
 app.configure(function() {
 	var rootPath = __dirname;
 	util.log('rootPath: '+rootPath);
 	app.use(express.static(rootPath));
 });
-
-server.listen(port);
 
 
 var clientMap = {};
@@ -162,6 +218,8 @@ var jsonValidate = (function() {
 	};
 })();
 
+
+server.listen(port);
 
 io.sockets.on('connection', function (socket) {
 

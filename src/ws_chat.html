@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html manifest="ws_chat.manifest">
 <head>
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 	<meta http-equiv="X-UA-Compatible" content="IE=edge" />
@@ -772,35 +772,72 @@ function showInitDialog() {
  	   closable : false,
  	   prompt : true,
  	   fn: function(button, text) {
- 		   join(text);
+			if (text == null || text == '') {
+				showInitDialog();
+				return false;
+			}
+			myName = text;
+
+			if (
+				window.webkitNotifications &&
+				window.webkitNotifications.checkPermission() != 0
+			) {
+				Ext.MessageBox.show({
+			 	   title:'情報',
+			 	   msg: '通知機能が有効になっていません。<br />デスクトップ通知を許可してください。',
+			 	   buttons: Ext.Msg.OK,
+			 	   closable : false,
+			 	   fn: function(button, text) {
+						console.log('permission:'+window.webkitNotifications.checkPermission());
+						window.webkitNotifications.requestPermission(function() {
+							console.log('permission:'+window.webkitNotifications.checkPermission());
+						});
+						checkServer();
+			 	   } ,
+			 	   icon: Ext.MessageBox.INFO
+			 	});
+			} else {
+				checkServer();
+			}
+ 			return true;
  	   } ,
  	   icon: Ext.MessageBox.INFO
  	});
 }
 
-function join(name) {
-	if (name == null || name == '') {
-		showInitDialog();
-		return false;
+var checkServer = (function() {
+	var messageBox = null;
+	var retryCount = 0;
+	return function() {
+		Ext.Ajax.request({
+			url: '/command/ping',
+			success: function(response, opts) {
+				if (messageBox != null && messageBox.isVisible()) {
+					messageBox.getDialog().close();
+				}
+				if (retryCount > 0) {
+					showDesktopPopup(
+						'通知 ('+Ext.util.Format.date(new Date(),'Y/m/d H:i:s')+')',
+						'サーバが起動しました。開始します。',
+						-1);
+				}
+				join();
+			},
+			failure: function(response, opts) {
+				if (messageBox == null || !messageBox.isVisible()) {
+					messageBox = Ext.MessageBox.alert(
+				 	   '情報',
+				 	   'サーバが起動していないようです。<br />サーバ起動後、チャットは自動的に開始しますので、このままでお待ちください。'
+					);
+				}
+				retryCount++;
+				setTimeout(checkServer, 5*60*1000)
+			}
+		});
 	}
-	if (
-		window.webkitNotifications &&
-		window.webkitNotifications.checkPermission() != 0
-	) {
-		Ext.MessageBox.show({
-	 	   title:'情報',
-	 	   msg: '通知機能が有効になっていません。<br />デスクトップ通知を許可してください。',
-	 	   buttons: Ext.Msg.OK,
-	 	   closable : false,
-	 	   fn: function(button, text) {
-				console.log('permission:'+window.webkitNotifications.checkPermission());
-				window.webkitNotifications.requestPermission(function() {
-					console.log('permission:'+window.webkitNotifications.checkPermission());
-				});
-	 	   } ,
-	 	   icon: Ext.MessageBox.INFO
-	 	});
-	}
+})();
+
+function join() {
 
 	var path = location.protocol+'//'+location.host+'/';
 	console.log('path: '+path);
@@ -815,13 +852,13 @@ function join(name) {
 	socket.on('connect', function() {
 		console.log('connect '+arguments.length);
 		if (!connected) {
-			socket.emit('chat start', {name : name, reconnect : false});
+			socket.emit('chat start', {name : myName, reconnect : false});
 		}
 		connected = true;
 	});
 	socket.on('reconnect', function() {
 		console.log('reconnect '+arguments.length);
-		socket.emit('chat start', {name : name, reconnect : true});
+		socket.emit('chat start', {name : myName, reconnect : true});
 	});
 	socket.on('disconnect', function(event) {
 		console.log('disconnect:'+JSON.stringify(arguments));
