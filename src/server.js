@@ -280,6 +280,7 @@ io.sockets.on('connection', function (socket) {
 	});
 
 	socket.on('chat start', function(data) {
+		// util.log(JSON.stringify(data));
 		if (!jsonValidate(socket, 'chat_start', data)) { return; }
 
 		if (APP_CONFIG.ENCRYPTION) {

@@ -865,17 +865,21 @@ function join() {
 	});
 
 	socket.on('handshake reply', function(data) {
-		var publicKey = data.publicKey;
-		var byteArray = cryptico.generateAESKey();
-		commonKey = cryptico.bytes2string(byteArray);
-		// console.log('byteArray: '+byteArray);
-		// console.log('commonKey: '+commonKey);
-		var encryptResult = cryptico.encrypt(commonKey, publicKey);
-		// console.log(JSON.stringify(encryptResult));
+		var encryptedCommonKey = null;
+		if (APP_CONFIG.ENCRYPTION) {
+			var publicKey = data.publicKey;
+			var byteArray = cryptico.generateAESKey();
+			commonKey = cryptico.bytes2string(byteArray);
+			// console.log('byteArray: '+byteArray);
+			// console.log('commonKey: '+commonKey);
+			var encryptResult = cryptico.encrypt(commonKey, publicKey);
+			// console.log(JSON.stringify(encryptResult));
+			encryptedCommonKey = encryptResult.cipher;
+		}
 		socket.emit('chat start', {
 			name : myName,
 			reconnect : connected,
-			encryptedCommonKey : encryptResult.cipher
+			encryptedCommonKey : encryptedCommonKey
 		});
 		connected = true;
 	});

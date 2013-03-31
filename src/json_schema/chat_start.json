@@ -9,7 +9,7 @@
 			"type": "boolean"
 		},
 		"encryptedCommonKey": {
-			"type": "string",
+			"type": [ "string", "null" ],
 			"maxLength": 2048
 		}
 	},
