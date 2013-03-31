@@ -35,10 +35,11 @@ var userStore = new Ext.data.JsonStore({
 	'idProperty': 'id',
 	'fields': ['id', 'name', 'host', 'addr', 'loginDate', 'userAgent']
 });
+var commonKey;
 
 Ext.EventManager.on(window, 'unload', function() {
 	if (myName != null && privateMsgLog.length > 0) {
-		localStorage['privateMsgLog_'+myName] = JSON.stringify(privateMsgLog);
+		localStorage['privateMsgLog'] = JSON.stringify(privateMsgLog);
 	}
 	if (socket != null) {
 		socket.disconnect();
@@ -710,7 +711,7 @@ Ext.onReady(function() {
 			}]
 		},{
 			id : 'PrivateMsgLogTab',
-			title	: 'DM過去ログ',
+			title	: 'PrivateMsg過去ログ',
 			layout : 'border',
 			closable : false,
 			items : [{
@@ -830,14 +831,11 @@ function join() {
 	});
 	socket.on('connect', function() {
 		console.log('connect '+arguments.length);
-		if (!connected) {
-			socket.emit('chat start', {name : myName, reconnect : false});
-		}
-		connected = true;
+		socket.emit('handshake call');
 	});
 	socket.on('reconnect', function() {
 		console.log('reconnect '+arguments.length);
-		socket.emit('chat start', {name : myName, reconnect : true});
+		socket.emit('handshake call');
 	});
 	socket.on('disconnect', function(event) {
 		console.log('disconnect:'+JSON.stringify(arguments));
@@ -865,7 +863,24 @@ function join() {
 		// 	' ',
 		// 	'エラーが発生しました。再接続するにはブラウザをリロードしてください。');
 	});
-	socket.on('error push', function(data) {
+
+	socket.on('handshake reply', function(data) {
+		var publicKey = data.publicKey;
+		var byteArray = cryptico.generateAESKey();
+		commonKey = cryptico.bytes2string(byteArray);
+		// console.log('byteArray: '+byteArray);
+		// console.log('commonKey: '+commonKey);
+		var encryptResult = cryptico.encrypt(commonKey, publicKey);
+		// console.log(JSON.stringify(encryptResult));
+		socket.emit('chat start', {
+			name : myName,
+			reconnect : connected,
+			encryptedCommonKey : encryptResult.cipher
+		});
+		connected = true;
+	});
+	socket.on('error push', function(str) {
+		var data = common.decryptByAES(str, commonKey);
 		console.log('error push: '+JSON.stringify(data));
 		var errorTitle = 'エラー';
 		var errorMsg = 'エラーが発生しました。';
@@ -879,8 +894,8 @@ function join() {
 		}
 		Ext.MessageBox.alert(errorTitle, errorMsg);
 	});
-	socket.on('chat setup', function(data) {
-		//console.log('setupData:'+JSON.stringify(data));
+	socket.on('chat setup', function(str) {
+		var data = common.decryptByAES(str, commonKey);
 		myID = data.myData.id;
 		myName = data.myData.name;
 		myHost = data.myData.host;
@@ -908,9 +923,9 @@ function join() {
 		}
 
 		//プライベートメッセージ読み込み
-		if (localStorage['privateMsgLog_'+myName]) {
+		if (localStorage['privateMsgLog']) {
 			try {
-				var objStr = localStorage['privateMsgLog_'+myName];
+				var objStr = localStorage['privateMsgLog'];
 				var obj = JSON.parse(objStr);
 				if (obj instanceof Array) {
 					privateMsgLog = obj;
@@ -925,7 +940,8 @@ function join() {
 
 		Ext.getCmp('MainMsg').focus();
 	});
-	socket.on('user add', function(data) {
+	socket.on('user add', function(str) {
+		var data = common.decryptByAES(str, commonKey);
 		var readResult = userStore.reader.readRecords(data);
 		for (var i=0,l=readResult.records.length; i<l; i++) {
 			userStore.addSorted(readResult.records[i]);
@@ -938,7 +954,8 @@ function join() {
 			);
 		}
 	});
-	socket.on('user delete', function(data) {
+	socket.on('user delete', function(str) {
+		var data = common.decryptByAES(str, commonKey);
 		var record = userStore.query('id', data.users.id);
 		if (record != null && record.length > 0) {
 			userStore.remove(record.get(0));
@@ -951,12 +968,13 @@ function join() {
 			);
 		}
 	});
-	socket.on('message push', function(data, callbackFn) {
-		//console.log('message: '+JSON.stringify(data));
+	socket.on('message push', function(str, callbackFn) {
+		var data = common.decryptByAES(str, commonKey);
 		//console.log('callbackFn: '+fn);
 		handleMessage(data, callbackFn);
 	});
-	socket.on('message delete', function(data) {
+	socket.on('message delete', function(str) {
+		var data = common.decryptByAES(str, commonKey);
 		var targetPanel = Ext.getCmp('MainView');
 		var targetItems = targetPanel.items;
 		var removeList = [];
@@ -977,7 +995,8 @@ function join() {
 			targetPanel.remove(removeList[i], true);
 		}
 	});
-	socket.on('figure push', function(data) {
+	socket.on('figure push', function(str) {
+		var data = common.decryptByAES(str, commonKey);
 		console.log('figure push: ');
 		handleFigure(data);
 	});
@@ -988,7 +1007,7 @@ function sendMessage(data) {
 		Ext.MessageBox.alert('　', 'サーバに接続していないため、メッセージを送ることができませんでした。');
 		return;
 	}
-	socket.emit('message send', data);
+	socket.emit('message send', common.encryptByAES(data, commonKey));
 }
 
 function handleMessage(data, callbackFn) {
@@ -1111,9 +1130,9 @@ function msgAdd(targetPanel, data) {
 						text : '削除',
 						listeners : {
 							click : function() {
-								socket.emit('message delete', {
+								socket.emit('message delete', common.encryptByAES({
 								   	'time' : data.time
-								});
+								}, commonKey));
 							}
 						}
 					});
@@ -1300,7 +1319,7 @@ function sendFigure(data) {
 		Ext.MessageBox.alert('　', 'サーバに接続していないため、メッセージを送ることができませんでした。');
 		return;
 	}
-	socket.emit('figure send', data);
+	socket.emit('figure send', common.encryptByAES(data, commonKey));
 }
 function handleFigure(data) {
 	var canvas = document.getElementById('MyCanvas');

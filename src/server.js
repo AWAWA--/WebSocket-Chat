@@ -9,9 +9,24 @@ var express = require('express')
 
 
 util.log('argv: ' + process.argv);
-var port = process.argv[2] || 3000;
-util.log('port: ' + port);
 
+//設定情報スクリプトのロード
+var APP_CONFIG = eval('(function() {' +
+	fs.readFileSync(path.join(__dirname, 'config.js')) +
+	'; return APP_CONFIG;})()'
+);
+util.log('APP_CONFIG: ' + JSON.stringify(APP_CONFIG));
+
+//サーバ・クライアント共通スクリプトのロード
+var common = eval('(function() {' +
+	'var APP_CONFIG = ' + JSON.stringify(APP_CONFIG) + ';' +
+	fs.readFileSync(path.join(__dirname, 'common.js')) +
+	'; return common;})()'
+);
+
+
+var port = process.argv[2] || APP_CONFIG.PORT;
+util.log('port: ' + port);
 
 var server;
 if (port == 443) {
@@ -190,6 +205,24 @@ var getHostByAddr = (function() {
 })();
 
 
+//暗号化セットアップ
+var cryptico;
+var rsa;
+var publicKeyString;
+if (APP_CONFIG.ENCRYPTION) {
+	cryptico = eval('(function() {' +
+		'var navigator = {};' +
+		'var alert = function(msg){ util.log(msg); };' +
+		fs.readFileSync(path.join(__dirname, 'cryptico/cryptico.js')) +
+		'; return cryptico;})()'
+	);
+	rsa = cryptico.generateRSAKey(''+new Date().getTime(), 1024);
+	// util.log(rsa);
+	publicKeyString = cryptico.publicKeyString(rsa);
+	// util.log(JSON.stringify(publicKeyString));
+}
+
+
 //JSONのバリデート関数
 var jsonValidate = (function() {
 	//JSONスキーマのロード
@@ -223,8 +256,38 @@ server.listen(port);
 
 io.sockets.on('connection', function (socket) {
 
+	var commonKey;
+	function emit(targetSocket, name, data, callback) {
+		var client = clientMap[targetSocket.id];
+		targetSocket.emit(name, common.encryptByAES(data, client.commonKey), callback);
+	}
+	function broadcastEmit(name, data) {
+		for (var clientID in clientMap) {
+			// util.log('socket.id:'+socket.id +' clientID:'+clientID);
+			if (socket.id == clientID) { continue; }
+			var client = clientMap[clientID];
+			var targetSocket = io.sockets.socket(clientID);
+			if (targetSocket) {
+				targetSocket.emit(name, common.encryptByAES(data, client.commonKey));
+			}
+		}
+	}
+
+	socket.on('handshake call', function(data) {
+		socket.emit('handshake reply', {
+			publicKey : publicKeyString
+		});
+	});
+
 	socket.on('chat start', function(data) {
 		if (!jsonValidate(socket, 'chat_start', data)) { return; }
+
+		if (APP_CONFIG.ENCRYPTION) {
+			var decryptResult = cryptico.decrypt(data.encryptedCommonKey, rsa);
+			commonKey = decryptResult.plaintext;
+			// util.log('commonKey: ' + commonKey);
+		}
+
 		var address = socket.handshake.address.address;
 		getHostByAddr(address, '****', function(hostName) {
 			//util.log('chat start: ' + JSON.stringify(data));
@@ -247,14 +310,17 @@ io.sockets.on('connection', function (socket) {
 			};
 			util.log('<+> add connection: '+JSON.stringify(userData));
 
-			clientMap[socket.id] = userData;
+			clientMap[socket.id] = {
+				userData : userData,
+				commonKey : commonKey
+			};
 
-			socket.emit('chat setup', {
+			emit(socket, 'chat setup', {
 				myData : userData,
 				users : (function() {
 					var userList = [];
 					for (var i in clientMap) {
-						userList.push(clientMap[i]);
+						userList.push(clientMap[i].userData);
 					}
 					return userList;
 				})(),
@@ -264,9 +330,10 @@ io.sockets.on('connection', function (socket) {
 
 			var reconnect = false;
 			if (data.reconnect) { reconnect = true; }
-			socket.broadcast.emit('user add', {'users' : userData, 'reconnect' : reconnect });
+			broadcastEmit('user add', {'users' : userData, 'reconnect' : reconnect });
 
-			socket.on('message send', function(data) {
+			socket.on('message send', function(str) {
+				var data = common.decryptByAES(str, commonKey);
 				if (!jsonValidate(socket, 'message_send', data)) { return; }
 				var  msgTarget = data.msgTarget;
 				var isReply = data.isReply;
@@ -277,62 +344,68 @@ io.sockets.on('connection', function (socket) {
 
 				var client = clientMap[socket.id];
 				if (client == null) { return; }
+				var userData = client.userData;
 
 				var sendMsg = {
 					'msgTarget' : msgTarget,
 					'isPrivate' : (msgTarget != null && '' != msgTarget),
 					'time' : new Date().getTime(),
-					'id' : client.id,
-					'name' : client.name,
-					'host' : client.host,
-					'addr' : client.addr,
+					'id' : userData.id,
+					'name' : userData.name,
+					'host' : userData.host,
+					'addr' : userData.addr,
 					'effect' : data.effect,
 					'msg' : msg
 				};
 
-				socket.emit('message push', sendMsg);
+				emit(socket, 'message push', sendMsg);
 				if (sendMsg.isPrivate) {
 					var targetSocket = io.sockets.socket(msgTarget);
 					if (clientMap[msgTarget] != null && targetSocket != null) {
 						var callbackCatched = false;
-						targetSocket.emit('message push', sendMsg, function(callbackData) {
-							callbackCatched = true;
-						});
+						emit(targetSocket, 'message push',
+							sendMsg,
+							function(callbackData) {
+								callbackCatched = true;
+							}
+						);
 						setTimeout(function() {
 							//util.log('callbackCatched:'+callbackCatched);
 							if (!callbackCatched) {
-								socket.emit('error push', {
+								emit(socket, 'error push', {
 									errorID : 'PRIVATEMSG_CALLBACK_UNCATCHED'
 								});
 							}
 						}, 10*1000);
 					} else {
-						socket.emit('error push', {
+						emit(socket, 'error push', {
 							errorID : 'PRIVATEMSG_TARGET_NOT_EXIST'
 						});
 					}
 				} else {
-					socket.broadcast.emit('message push', sendMsg);
+					broadcastEmit('message push', sendMsg);
 					msgQueue.add(sendMsg);
 				}
 			});
 
-			socket.on('figure send', function(data) {
+			socket.on('figure send', function(str) {
+				var data = common.decryptByAES(str, commonKey);
 				if (!jsonValidate(socket, 'figure_send', data)) { return; }
-				socket.broadcast.emit('figure push', data);
+				broadcastEmit('figure push', data);
 				figureQueue.add(data);
 			});
 
-			socket.on('message delete', function(data) {
+			socket.on('message delete', function(str) {
+				var data = common.decryptByAES(str, commonKey);
 				if (!jsonValidate(socket, 'message_delete', data)) { return; }
 				var client = clientMap[socket.id];
 				if (client == null) { return; }
 				var sendData = {
-					"id": client.id,
+					"id": socket.id,
 					"time": data.time
 				};
-				socket.emit('message delete', sendData);
-				socket.broadcast.emit('message delete', sendData);
+				emit(socket, 'message delete', sendData);
+				broadcastEmit('message delete', sendData);
 				msgQueue.delete(sendData);
 			});
 		});
@@ -342,10 +415,10 @@ io.sockets.on('connection', function (socket) {
 		//util.log(JSON.stringify(arguments));
 		var client = clientMap[socket.id];
 		if (client) {
-			util.log('<-> del connection: '+JSON.stringify(client));
+			util.log('<-> del connection: '+JSON.stringify(client.userData));
 			delete clientMap[socket.id];
 			//if (event == 'booted') {
-				socket.broadcast.emit('user delete', {'users' : client});
+				broadcastEmit('user delete', {'users' : client.userData});
 			//}
 		}
 	});
