@@ -256,33 +256,36 @@ server.listen(port);
 
 io.sockets.on('connection', function (socket) {
 
-	var commonKey;
 	function emit(targetSocket, name, data, callback) {
 		var client = clientMap[targetSocket.id];
+		// util.log('emit '+name+': ' + JSON.stringify(client));
 		targetSocket.emit(name, common.encryptByAES(data, client.commonKey), callback);
 	}
-	function broadcastEmit(name, data) {
+	function broadcastEmit(thisSocket, name, data) {
 		for (var clientID in clientMap) {
 			// util.log('socket.id:'+socket.id +' clientID:'+clientID);
-			if (socket.id == clientID) { continue; }
+			if (thisSocket.id == clientID) { continue; }
 			var client = clientMap[clientID];
 			var targetSocket = io.sockets.socket(clientID);
 			if (targetSocket) {
+				// util.log('broadcast '+name+': ' + JSON.stringify(client));
 				targetSocket.emit(name, common.encryptByAES(data, client.commonKey));
 			}
 		}
 	}
 
 	socket.on('handshake call', function(data) {
+		// util.log('handshake call: ' + JSON.stringify(data));
 		socket.emit('handshake reply', {
 			publicKey : publicKeyString
 		});
 	});
 
 	socket.on('chat start', function(data) {
-		// util.log(JSON.stringify(data));
+		// util.log('chat start: ' + JSON.stringify(data));
 		if (!jsonValidate(socket, 'chat_start', data)) { return; }
 
+		var commonKey;
 		if (APP_CONFIG.ENCRYPTION) {
 			var decryptResult = cryptico.decrypt(data.encryptedCommonKey, rsa);
 			commonKey = decryptResult.plaintext;
@@ -331,7 +334,7 @@ io.sockets.on('connection', function (socket) {
 
 			var reconnect = false;
 			if (data.reconnect) { reconnect = true; }
-			broadcastEmit('user add', {'users' : userData, 'reconnect' : reconnect });
+			broadcastEmit(socket, 'user add', {'users' : userData, 'reconnect' : reconnect });
 
 			socket.on('message send', function(str) {
 				var data = common.decryptByAES(str, commonKey);
@@ -384,7 +387,7 @@ io.sockets.on('connection', function (socket) {
 						});
 					}
 				} else {
-					broadcastEmit('message push', sendMsg);
+					broadcastEmit(socket, 'message push', sendMsg);
 					msgQueue.add(sendMsg);
 				}
 			});
@@ -392,7 +395,7 @@ io.sockets.on('connection', function (socket) {
 			socket.on('figure send', function(str) {
 				var data = common.decryptByAES(str, commonKey);
 				if (!jsonValidate(socket, 'figure_send', data)) { return; }
-				broadcastEmit('figure push', data);
+				broadcastEmit(socket, 'figure push', data);
 				figureQueue.add(data);
 			});
 
@@ -406,7 +409,7 @@ io.sockets.on('connection', function (socket) {
 					"time": data.time
 				};
 				emit(socket, 'message delete', sendData);
-				broadcastEmit('message delete', sendData);
+				broadcastEmit(socket, 'message delete', sendData);
 				msgQueue.delete(sendData);
 			});
 		});
@@ -419,7 +422,7 @@ io.sockets.on('connection', function (socket) {
 			util.log('<-> del connection: '+JSON.stringify(client.userData));
 			delete clientMap[socket.id];
 			//if (event == 'booted') {
-				broadcastEmit('user delete', {'users' : client.userData});
+				broadcastEmit(socket, 'user delete', {'users' : client.userData});
 			//}
 		}
 	});

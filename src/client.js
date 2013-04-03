@@ -831,7 +831,10 @@ function join() {
 	});
 	socket.on('connect', function() {
 		console.log('connect '+arguments.length);
-		socket.emit('handshake call');
+		if (!connected) {
+			socket.emit('handshake call');
+		}
+		connected = true;
 	});
 	socket.on('reconnect', function() {
 		console.log('reconnect '+arguments.length);
@@ -868,10 +871,13 @@ function join() {
 		var encryptedCommonKey = null;
 		if (APP_CONFIG.ENCRYPTION) {
 			var publicKey = data.publicKey;
-			var byteArray = cryptico.generateAESKey();
-			commonKey = cryptico.bytes2string(byteArray);
-			// console.log('byteArray: '+byteArray);
-			// console.log('commonKey: '+commonKey);
+			if (commonKey　== null) {
+				//初回接続時のみ乱数生成
+				var byteArray = cryptico.generateAESKey();
+				commonKey = cryptico.bytes2string(byteArray);
+				// console.log('byteArray: '+byteArray);
+				// console.log('commonKey: '+commonKey);
+			}
 			var encryptResult = cryptico.encrypt(commonKey, publicKey);
 			// console.log(JSON.stringify(encryptResult));
 			encryptedCommonKey = encryptResult.cipher;
@@ -881,7 +887,6 @@ function join() {
 			reconnect : connected,
 			encryptedCommonKey : encryptedCommonKey
 		});
-		connected = true;
 	});
 	socket.on('error push', function(str) {
 		var data = common.decryptByAES(str, commonKey);
