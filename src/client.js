@@ -3,21 +3,6 @@
 
 Ext.BLANK_IMAGE_URL = "extjs/resources/images/default/s.gif";
 
-if (!global.console) {
-	global.console = {
-		'log' : function() {}
-	};
-}
-if (!global.JSON) {
-	global.JSON = {
-		'stringify' : function(o) { return Ext.util.JSON.encode(o); },
-		'parse' : function(s) { return Ext.util.JSON.decode(s); }
-	};
-}
-if (!global.localStorage) {
-	global.localStorage = {};
-}
-
 var socket = null;
 var connected = false;
 var config = {};
@@ -36,6 +21,37 @@ var userStore = new Ext.data.JsonStore({
 	'fields': ['id', 'name', 'host', 'addr', 'loginDate', 'userAgent']
 });
 var commonKey;
+
+if (!global.console) {
+	global.console = {
+		'log' : function() {}
+	};
+}
+if (!global.JSON) {
+	global.JSON = {
+		'stringify' : function(o) { return Ext.util.JSON.encode(o); },
+		'parse' : function(s) { return Ext.util.JSON.decode(s); }
+	};
+}
+if (!global.localStorage) {
+	global.localStorage = {};
+}
+
+if (global.applicationCache) {
+	var appCache = global.applicationCache;
+	// appCache.addEventListener('cached', function(){ console.log('cached: '+JSON.stringify(arguments)); });
+	// appCache.addEventListener('checking', function(){ console.log('checking: '+JSON.stringify(arguments)); });
+	// appCache.addEventListener('downloading', function(){ console.log('downloading: '+JSON.stringify(arguments)); });
+	// appCache.addEventListener('noupdate', function(){ console.log('noupdate: '+JSON.stringify(arguments)); });
+	// appCache.addEventListener('obsolete', function(){ console.log('obsolete: '+JSON.stringify(arguments)); });
+	// appCache.addEventListener('progress', function(){ console.log('progress: '+JSON.stringify(arguments)); });
+	appCache.addEventListener('updateready', function(){
+		// console.log('updateready: '+JSON.stringify(arguments));
+		alert('アプリケーションが更新されました。リロードします。');
+		appCache.swapCache();
+		global.location.reload();
+	});
+}
 
 Ext.EventManager.on(window, 'unload', function() {
 	if (myName != null && privateMsgLog.length > 0) {
@@ -819,7 +835,7 @@ var checkServer = (function() {
 
 function join() {
 
-	var path = location.protocol+'//'+location.host+'/';
+	var path = global.location.protocol+'//'+global.location.host+'/';
 	console.log('path: '+path);
 	socket = io.connect(path, {
 		'reconnect': true

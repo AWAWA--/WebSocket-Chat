@@ -7,7 +7,7 @@
 	<link rel="stylesheet" type="text/css" href="extjs/resources/css/ext-all-notheme.css"/>
 	<script type="text/javascript">
 		var theme = 'blue';
-		var reg = /theme=([a-zA-Z]+)/;
+		var reg = /theme=([^&]+)/;
 		var search = location.search || '';
 		if (reg.test(search)) {
 			theme = search.match(reg)[1];
