@@ -314,6 +314,23 @@ io.sockets.on('connection', function (socket) {
 				userAgent = userAgent.substring(0, 256) + '...';
 			}
 
+			if (APP_CONFIG.BASIC_AUTH) {
+				hostName = (function(authHeader) {
+					try {
+						var base64 = authHeader.substring('Basic '.length);
+						var userPass = new Buffer(base64, 'base64').toString('utf8');
+						var userID = userPass.split(':')[0];
+						if (userID.length > 32) {
+							userID = userID.substring(0, 32) + '...';
+						}
+						return userID;
+					} catch (e) {
+						util.log('error: address='+socket.handshake.address.address+', '+e);
+						return 'null';
+					}
+				})(socket.handshake.headers['authorization']) + '@' + hostName;
+			}
+
 			var userData = {
 				id : socket.id,
 				name : userName,
