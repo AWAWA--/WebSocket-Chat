@@ -7,7 +7,6 @@ var express = require('express')
   , util = require('util')
   , JaySchema = require('jayschema');
 
-
 util.log('argv: ' + process.argv);
 
 //設定情報スクリプトのロード
@@ -43,6 +42,15 @@ if (port == 443) {
 var io = require('socket.io').listen(server);
 io.set('log level', 1);
 
+//認証設定
+if (APP_CONFIG.BASIC_AUTH) {
+	var userPass = eval('('+fs.readFileSync(
+		path.join(__dirname, APP_CONFIG.BASIC_AUTH_FILE))+')');
+	app.use(express.basicAuth(function(user, password) {
+		return userPass[user] != null && userPass[user] == password;
+	}));
+}
+
 app.get('/command/ping', function(req, res) {
 	res.send('OK');
 });
@@ -57,6 +65,7 @@ app.get('/command/shutdown', function(req, res) {
 
 app.get('/ws_chat.manifest', (function() {
 	var manifestData = '';
+	var lastUpdateTime = 0;
 	var reg = /^(.+)\.manifest$/;
 	var eol = os.EOL;
 	function write(str) {
@@ -73,7 +82,12 @@ app.get('/ws_chat.manifest', (function() {
 				writeCacheEntry(dir + '/' + fileName);
 				continue;
 			}
+			// util.log(JSON.stringify(stats));
 			write(dir+'/'+fileName + eol);
+			var mTime = stats.mtime.getTime();
+			if (mTime > lastUpdateTime) {
+				lastUpdateTime = mTime;
+			}
 		}
 	}
 	write('CACHE MANIFEST' + eol);
@@ -87,23 +101,19 @@ app.get('/ws_chat.manifest', (function() {
 	return function(req, res) {
 		// util.log(JSON.stringify(req.headers));
 		var ifModifiedSince = req.headers['if-modified-since'];
-		var nowGMTString = new Date().toGMTString();
-		if (ifModifiedSince) {
-			var date = Date.parse(ifModifiedSince);
-			var nowDate = Date.parse(nowGMTString);
-			// util.log(new Date(date) + ' :: ' + new Date(nowDate));
-			if ((nowDate - date) < 5*60*1000) {
-				res.statusCode = 304;
-				res.end();
-				return;
-			}
+		var lastUpdateGMTString = new Date(lastUpdateTime).toGMTString();
+		util.log('ifModifiedSince:'+ifModifiedSince+' lastUpdateGMTString:'+lastUpdateGMTString);
+		if (ifModifiedSince != null && ifModifiedSince == lastUpdateGMTString) {
+			res.statusCode = 304;
+			res.end();
+			return;
 		}
 		res.writeHead(200, {
 			'Content-Type': 'text/cache-manifest',
-			'Last-Modified' : nowGMTString
+			'Last-Modified' : lastUpdateGMTString
 		});
 		res.write(manifestData);
-		res.write('#' + new Date() + eol);
+		res.write('#' + lastUpdateGMTString + eol);
 		res.end();
 	};
 })());

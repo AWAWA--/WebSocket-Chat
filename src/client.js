@@ -53,7 +53,7 @@ if (global.applicationCache) {
 	});
 }
 
-Ext.EventManager.on(window, 'unload', function() {
+Ext.EventManager.on(global, 'unload', function() {
 	if (myName != null && privateMsgLog.length > 0) {
 		localStorage['privateMsgLog'] = JSON.stringify(privateMsgLog);
 	}
@@ -320,16 +320,16 @@ Ext.onReady(function() {
 				text : 'デスクトップ通知を許可',
 				listeners : {
 					click : function() {
-						if (!window.webkitNotifications) {
+						if (!global.webkitNotifications) {
 							Ext.MessageBox.alert(
 								'　',
 								'お使いのブラウザはデスクトップ通知に対応していません。'
 								+'<br />GoogleChromeの最新版をお使いください。'
 							);
-						} else if (window.webkitNotifications.checkPermission() != 0) {
-							console.log('permission:'+window.webkitNotifications.checkPermission());
-							window.webkitNotifications.requestPermission(function() {
-								console.log('permission:'+window.webkitNotifications.checkPermission());
+						} else if (global.webkitNotifications.checkPermission() != 0) {
+							console.log('permission:'+global.webkitNotifications.checkPermission());
+							global.webkitNotifications.requestPermission(function() {
+								console.log('permission:'+global.webkitNotifications.checkPermission());
 							});
 						}
 					}
@@ -761,6 +761,13 @@ Ext.onReady(function() {
 });
 
 function showInitDialog() {
+	var reg = /name=([^&]+)/;
+	var search = global.location.search || '';
+	if (reg.test(search)) {
+		myName = global.decodeURIComponent(search.match(reg)[1]);
+		checkServer();
+		return;
+	}
 	Ext.MessageBox.show({
  	   title:'ログイン',
  	   msg: 'あなたが使用する名前を入力してください。',
@@ -775,8 +782,8 @@ function showInitDialog() {
 			myName = text;
 
 			if (
-				window.webkitNotifications &&
-				window.webkitNotifications.checkPermission() != 0
+				global.webkitNotifications &&
+				global.webkitNotifications.checkPermission() != 0
 			) {
 				Ext.MessageBox.show({
 			 	   title:'情報',
@@ -784,9 +791,9 @@ function showInitDialog() {
 			 	   buttons: Ext.Msg.OK,
 			 	   closable : false,
 			 	   fn: function(button, text) {
-						console.log('permission:'+window.webkitNotifications.checkPermission());
-						window.webkitNotifications.requestPermission(function() {
-							console.log('permission:'+window.webkitNotifications.checkPermission());
+						console.log('permission:'+global.webkitNotifications.checkPermission());
+						global.webkitNotifications.requestPermission(function() {
+							console.log('permission:'+global.webkitNotifications.checkPermission());
 						});
 						checkServer();
 			 	   } ,
@@ -816,6 +823,7 @@ var checkServer = (function() {
 						'通知 ('+Ext.util.Format.date(new Date(),'Y/m/d H:i:s')+')',
 						'サーバが起動しました。開始します。',
 						-1);
+					retryCount = 0;
 				}
 				join();
 			},
@@ -1223,11 +1231,11 @@ function msgAdd(targetPanel, data) {
 
 function showDesktopPopup(title, msg, showTime, focusTabID) {
 	if (
-		window.webkitNotifications &&
-		window.webkitNotifications.checkPermission() == 0
+		global.webkitNotifications &&
+		global.webkitNotifications.checkPermission() == 0
 	) {
 		var notifyMsg = (msg.length > 36) ? (msg.substring(0,35)+'...') : (msg);
-		var notify = window.webkitNotifications.createNotification(
+		var notify = global.webkitNotifications.createNotification(
 			'./extjs/resources/images/default/window/icon-info.gif',
 			title,
 			notifyMsg
