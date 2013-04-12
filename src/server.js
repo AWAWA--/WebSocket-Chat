@@ -102,7 +102,7 @@ app.get('/ws_chat.manifest', (function() {
 		// util.log(JSON.stringify(req.headers));
 		var ifModifiedSince = req.headers['if-modified-since'];
 		var lastUpdateGMTString = new Date(lastUpdateTime).toGMTString();
-		util.log('ifModifiedSince:'+ifModifiedSince+' lastUpdateGMTString:'+lastUpdateGMTString);
+		// util.log('ifModifiedSince:'+ifModifiedSince+' lastUpdateGMTString:'+lastUpdateGMTString);
 		if (ifModifiedSince != null && ifModifiedSince == lastUpdateGMTString) {
 			res.statusCode = 304;
 			res.end();
@@ -159,8 +159,8 @@ Queue.prototype = {
 		return [].concat(this.queue);
 	}
 };
-var msgQueue = new Queue(35);
-var figureQueue = new Queue(35);
+var msgQueue = new Queue(APP_CONFIG.MSG_QUEUE_SIZE);
+var figureQueue = new Queue(APP_CONFIG.FIGURE_QUEUE_SIZE);
 
 
 //ログデータの読み込み
