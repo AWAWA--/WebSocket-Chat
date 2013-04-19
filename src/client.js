@@ -524,14 +524,21 @@ Ext.onReady(function() {
 					region : 'center',
 					layout : 'fit',
 					items : [
-	 					new Ext.form.TextField({
+	 					new Ext.form.TextArea({
 	 						id : 'MainMsg',
 	 						enableKeyEvents : true,
+	 						grow : true,
+	 						preventScrollbars : true,
+	 						style : {
+								fontSize : '1.2em'
+	 						},
 	 						listeners : {
 	 							keydown : function(textField, event) {
 	 								if (event.getKey() == 13) {
 	 									var b = Ext.getCmp('sendButton');
 	 									b.fireEvent('click', b, event);
+	 									event.stopEvent();
+	 									return false;
 	 								}
 	 							}
 	 						}
@@ -557,7 +564,7 @@ Ext.onReady(function() {
 									effect : event.shiftKey ? 1 : event.altKey ? 2 : 0,
 									msg : msg
 								});
-								text.setValue('');
+								setTimeout(function(){ text.reset(); }, 0);
 							}
 							text.focus();
 						}	
@@ -1200,9 +1207,16 @@ function msgAdd(targetPanel, data) {
 			},
 			html : (function() {
 				var str = Ext.util.Format.htmlEncode(''+data.msg);
+				// console.log(JSON.stringify(str));
 				str = str.replace(
-					/(^|\s|\()(https?:\/\/[a-zA-Z0-9\-_.!?~*;:\/\@&=+\$,%#]+)/g,
-					'$1<a target="_blank" href="$2">$2</a>');
+					/(https?:\/\/[a-zA-Z0-9\-_.!?~*;:\/\@&=+\$,%#]+)/g,
+					'<a target="_blank" href="$1">$1</a>');
+				str = str.replace(
+					/\t/g,
+					'&nbsp;&nbsp;&nbsp;&nbsp;');
+				str = str.replace(
+					/\r\n|\n/g,
+					'<br />');
 				switch(data.effect) {
 					case 1:
 						str = '<div style="'+
@@ -1299,13 +1313,20 @@ function addPrivateTab(user) {
 							region : 'center',
 							layout : 'fit',
 							items : [
-								new Ext.form.TextField({
+								new Ext.form.TextArea({
 									id : 'PrivateMsg_' + escapedUserID,
 									enableKeyEvents : true,
+			 						grow : true,
+			 						preventScrollbars : true,
+			 						style : {
+										fontSize : '1.2em'
+			 						},
 									listeners : {
 										keydown : function(textField, event) {
 											if (event.getKey() == 13) {
 												Ext.getCmp('PrivateSend_' + escapedUserID).fireEvent('click');
+												event.stopEvent();
+												return false;
 											}
 										}
 									}
@@ -1330,7 +1351,7 @@ function addPrivateTab(user) {
 											isReply : false,
 											msg : msg
 										});
-										text.setValue('');
+										setTimeout(function(){ text.reset(); }, 0);
 									}
 									text.focus();
 								}
