@@ -513,6 +513,7 @@ Ext.onReady(function() {
 				]
 			}, {
 				region:'north',
+				border : false,
 				//autoHeight : true,
 				layout : 'border',
 				bodyStyle : {
@@ -522,10 +523,12 @@ Ext.onReady(function() {
 				items : 
 				[{
 					region : 'center',
-					layout : 'fit',
+					layout : 'border',
+					border : false,
 					items : [
 	 					new Ext.form.TextArea({
 	 						id : 'MainMsg',
+	 						region : 'center',
 	 						enableKeyEvents : true,
 	 						grow : true,
 	 						preventScrollbars : true,
@@ -533,6 +536,64 @@ Ext.onReady(function() {
 								fontSize : '1.2em'
 	 						},
 	 						listeners : {
+	 							render : function(textField) {
+	 								var dom = textField.getEl().dom;
+									var reader = new FileReader();
+									var img = document.getElementById('dummyImage');
+
+									img.onload = function() {
+										try {
+											// img.onload = Ext.emptyFn;
+											var imageWidth = img.width;
+											var imageHeight = img.height;
+											// console.log(imageWidth + ' : ' + imageHeight);
+											if (imageWidth == 1 && imageHeight == 1) { return; }
+											var scale = (function() {
+												var MAX_PIXEL = 1024;
+												if (imageWidth <= MAX_PIXEL && imageHeight <= MAX_PIXEL) { return 1; }
+												return MAX_PIXEL / Math.max(imageWidth, imageHeight);
+											})();
+											// console.log('scale = ' + scale);
+											var canvas = document.getElementById('MainImage');
+											canvas.width = Math.ceil(img.width * scale);
+											canvas.height = Math.ceil(img.height * scale);
+											var ctx = canvas.getContext('2d');
+											// console.log(ctx);
+											ctx.save();
+											ctx.scale(scale, scale);
+											ctx.drawImage(img, 0, 0);
+											ctx.restore();
+											Ext.getCmp('MainImgIcon').enable();
+											img.src = Ext.BLANK_IMAGE_URL;
+										} catch(e) {
+											console.log(e);
+										}
+									};
+
+									reader.onerror = function(err) { console.log(err); };
+									reader.onload = function(event) {
+										// console.log(event);
+										img.src = event.target.result;
+									};
+
+	 								dom.onpaste = function(event) {
+										try {
+		 									// console.log(event.clipboardData);
+		 									// console.log(event.clipboardData.items);
+											var dataItem = event.clipboardData.items[0];
+											// console.log(dataItem);
+											var file = dataItem.getAsFile();
+											// console.log(file);
+											var dataType = dataItem.type;
+											// console.log(dataType);
+											if (/^image\//.test(dataType)) {
+												reader.readAsDataURL(file);
+											}
+										} catch(e) {
+											console.log(e);
+										}
+	 								};
+	 							},
 	 							keydown : function(textField, event) {
 	 								if (event.getKey() == 13) {
 	 									var b = Ext.getCmp('sendButton');
@@ -542,13 +603,78 @@ Ext.onReady(function() {
 	 								}
 	 							}
 	 						}
-						})
+						}),
+						{
+							id : 'MainImgIcon',
+							region : 'east',
+							// autoWidth : true,
+							xtype : 'button',
+							disabled : true,
+							text : '画像なし',
+							listeners: {
+								enable : function(self) {
+									self.setText('画像あり');
+								},
+								disable : function(self) {
+									self.setText('画像なし');
+								},
+								click : (function() {
+									var win = new Ext.Window({
+										//autoWidth : true,
+										width : 500,
+										//autoHeight : true,
+										height : 350,
+										buttonAlign : 'center',
+										closable : true,
+										closeAction : 'hide',
+										initHidden : true,
+										layout : 'fit',
+										hideMode : 'visibility',
+										modal : true,
+										resizable : true,
+										title : '添付画像',
+										items : [
+										{
+											autoScroll : true,
+											border : false,
+											html : '<img id="dummyImage" style="position:absolute;visibility:hidden;" />' +
+												'<canvas id="MainImage" style="border:1px solid silver;" />'
+										}
+										],
+										fbar : [
+										{
+											text : '削除する',
+											listeners : {
+												click : function() {
+													Ext.getCmp('MainImgIcon').disable();
+													win.hide();
+												}
+											}
+										},
+										{
+											text : '閉じる',
+											listeners : {
+												click : function() {
+													win.hide();
+												}
+											}
+										}
+										]
+									});
+									win.show();
+									win.hide();
+									return function(self) {
+										win.show();
+									};
+								})()
+							}
+						}
 					]
 				},
 				new Ext.Button({
 					id : 'sendButton',
 					region : 'east',
-					//autoWidth : true,
+					autoWidth : true,
 					style : {
 						width : '8em !important'
 					},
@@ -559,11 +685,21 @@ Ext.onReady(function() {
 							var msg = text.getValue();
 							if (msg != null && msg.length > 0) {
 								sendMessage({
-									msgTarget : null,
-									isReply : false,
-									effect : event.shiftKey ? 1 : event.altKey ? 2 : 0,
-									msg : msg
-								});
+										msgTarget : null,
+										isReply : false,
+										effect : event.shiftKey ? 1 : event.altKey ? 2 : 0,
+										msg : msg
+									}, 
+									(Ext.getCmp('MainImgIcon').disabled ? null : (function() {
+										var canvas = document.getElementById('MainImage');
+										return {
+											imageWidth : canvas.width,
+											imageHeight : canvas.height,
+											imageData : canvas.toDataURL('image/png')
+										};
+									})())
+								);
+								Ext.getCmp('MainImgIcon').disable();
 								setTimeout(function(){ text.reset(); }, 0);
 							}
 							text.focus();
@@ -1008,10 +1144,10 @@ function join() {
 			);
 		}
 	});
-	socket.on('message push', function(str, callbackFn) {
-		var data = common.decryptByAES(str, commonKey);
+	socket.on('message push', function(encryptedData, noEncryptedData, callbackFn) {
+		var data = common.decryptByAES(encryptedData, commonKey);
 		//console.log('callbackFn: '+fn);
-		handleMessage(data, callbackFn);
+		handleMessage(data, noEncryptedData, callbackFn);
 	});
 	socket.on('message delete', function(str) {
 		var data = common.decryptByAES(str, commonKey);
@@ -1042,15 +1178,15 @@ function join() {
 	});
 }
 
-function sendMessage(data) {
+function sendMessage(data, noEncryptData) {
 	if (socket == null || socket.socket == null || socket.socket.connected == false) {
 		Ext.MessageBox.alert('　', 'サーバに接続していないため、メッセージを送ることができませんでした。');
 		return;
 	}
-	socket.emit('message send', common.encryptByAES(data, commonKey));
+	socket.emit('message send', common.encryptByAES(data, commonKey), noEncryptData);
 }
 
-function handleMessage(data, callbackFn) {
+function handleMessage(data, noEncryptedData, callbackFn) {
 	var tabID;
 	var msgPanel;
 	if (data.isPrivate) {
@@ -1070,7 +1206,7 @@ function handleMessage(data, callbackFn) {
 		tabID = 'MainTab';
 		msgPanel = Ext.getCmp('MainView');
 	}
-	msgAdd(msgPanel, data);
+	msgAdd(msgPanel, data, noEncryptedData);
 	if (data.id != myID) {
 		if (data.isPrivate && callbackFn != null) {
 			callbackFn('private message catched.');
@@ -1114,134 +1250,220 @@ function handleMessage(data, callbackFn) {
 	}
 }
 
-function msgAdd(targetPanel, data) {
-	var msgPanel = new Ext.Panel({
-		autoHeight : true,
-		autoWidth : true,
-		bodyStyle : {
-			height : '2em'
-		},
-		padding : 5,
-		data : data,
-		items : 
-		[{
-			layout : 'hbox',
-			height : 50,
-			autoHeight : true,
-			autoWidth : true,
+var msgAdd = (function() {
+	var imageData = null;
+	var imageID = 'MainImageView_'+new Date().getTime();
+	var imageViewWin = new Ext.Window({
+		//autoWidth : true,
+		width : 500,
+		//autoHeight : true,
+		height : 350,
+		buttonAlign : 'center',
+		closable : true,
+		closeAction : 'hide',
+		initHidden : true,
+		layout : 'fit',
+		hideMode : 'visibility',
+		modal : true,
+		resizable : true,
+		title : '画像',
+		items : [
+		{
+			autoScroll : true,
 			border : false,
+			html : '<img id="'+imageID+'" style="border:1px solid silver;cursor:pointer;" />'
+		}
+		],
+		listeners : {
+			beforeshow : function(win) {
+				if (imageData != null) {
+					document.getElementById(imageID).src = imageData;
+				}
+			}
+		},
+		fbar : [
+		{
+			text : '閉じる',
+			listeners : {
+				click : function() {
+					imageViewWin.hide();
+				}
+			}
+		}
+		]
+	});
+	// imageViewWin.show();
+	// imageViewWin.hide();
+	return function(targetPanel, data, noEncryptedData) {
+		var msgPanel = new Ext.Panel({
+			autoWidth : true,
+			autoHeight : true,
+			// height : 150,
 			bodyStyle : {
-				height : '1em'
+				height : '2em'
 			},
-			defaults:{
+			padding : 5,
+			// layout : 'table',
+			// layoutConfig : {
+			// 	columns : 1
+			// },
+			data : data,
+			items : 
+			[{
+				autoWidth : true,
+				autoHeight : true,
+				// height : 50,
+				layout : 'hbox',
+				// layoutConfig : {
+				// 	align : 'stretch'
+				// },
 				border : false,
 				bodyStyle : {
-					marginRight : '10px',
-					whiteSpace: 'nowrap',
-					color : 'silver',
-					fontSize : 'small'
-				}
-			},
-			items :
-			(function() {
-				var items = [];
-				items.push({
-					html : Ext.util.Format.htmlEncode(data.name) 
-				});
-				items.push({
-					html : 
-						Ext.util.Format.htmlEncode(data.host) 
-						+ '('
-						+ Ext.util.Format.htmlEncode(data.addr)
-						+ ')'
-				});
-				items.push({
-					xtype:'spacer',
-					flex:1
-				});
-				items.push({
-					html : Ext.util.Format.htmlEncode(
-						Ext.util.Format.date(new Date(data.time),'Y/m/d H:i:s')
-					)
-				});
-				if (data.id == myID　&& !data.isPrivate) {
+					height : '1em'
+				},
+				defaults:{
+					border : false,
+					bodyStyle : {
+						marginRight : '10px',
+						whiteSpace: 'nowrap',
+						color : 'silver',
+						fontSize : 'small'
+					}
+				},
+				items :
+				(function() {
+					var items = [];
 					items.push({
-						xtype : 'button',
-						text : '削除',
-						listeners : {
-							click : function() {
-								socket.emit('message delete', common.encryptByAES({
-								   	'time' : data.time
-								}, commonKey));
-							}
-						}
+						html : Ext.util.Format.htmlEncode(data.name) 
 					});
-				}
-				if (targetPanel.getId() == 'PrivateMsgLogView') {
 					items.push({
-						xtype : 'button',
-						text : !!data.favorite ? 'お気に入り解除' : 'お気に入り追加',
-						enableToggle : true,
-						pressed : !!data.favorite,
-						toggleHandler : function(button, pushed) {
-							if (pushed) {
-								data.favorite = true;
-								button.setText('お気に入り解除');
-							} else {
-								data.favorite = false;
-								button.setText('お気に入り追加');
-							}
-						}
+						html : 
+							Ext.util.Format.htmlEncode(data.host) 
+							+ '('
+							+ Ext.util.Format.htmlEncode(data.addr)
+							+ ')'
 					});
-				}
-				return items;
-			})()
-		}, {
-			//height : 50,
-			autoHeight : true,
-			autoWidth : true,
-			border : false,
-			bodyStyle : {
-				height : '1em;',
-				wordBreak : 'break-all'
-			},
-			html : (function() {
-				var str = Ext.util.Format.htmlEncode(''+data.msg);
-				// console.log(JSON.stringify(str));
-				str = str.replace(
-					/(https?:\/\/[a-zA-Z0-9\-_.!?~*;:\/\@&=+\$,%#]+)/g,
-					'<a target="_blank" href="$1">$1</a>');
-				str = str.replace(
-					/\t/g,
-					'&nbsp;&nbsp;&nbsp;&nbsp;');
-				str = str.replace(
-					/\r\n|\n/g,
-					'<br />');
-				switch(data.effect) {
-					case 1:
-						str = '<div style="'+
-							'transform-origin:left top;-webkit-transform-origin:left top;-moz-transform-origin:left top;-ms-transform-origin:left top;-o-transform-origin:left top;'+
-							'transform:scale(0.6,0.6);-webkit-transform:scale(0.6,0.6);-moz-transform:scale(0.6,0.6);-ms-transform:scale(0.6,0.6);-o-transform:scale(0.6,0.6);'+
-							'">'+str+'</div>';
-						break;
-					case 2:
-						str = '<div style="font-size:2em;">'+str+'</div>';
-						break;
-					default:
-						break;
-				}
-				return str;
-			})()
-		}]
-	});
-	msgPanel.doLayout();
-	//_msgPanel = msgPanel;
-	if (targetPanel.items.length > 100) {
-		targetPanel.remove(targetPanel.items.get(targetPanel.items.length-1), true);
-	}
-	targetPanel.insert(0, msgPanel);
-	targetPanel.doLayout();
-}
+					items.push({
+						xtype:'spacer',
+						flex:1
+					});
+					items.push({
+						html : Ext.util.Format.htmlEncode(
+							Ext.util.Format.date(new Date(data.time),'Y/m/d H:i:s')
+						)
+					});
+					if (data.id == myID　&& !data.isPrivate) {
+						items.push({
+							xtype : 'button',
+							text : '削除',
+							listeners : {
+								click : function() {
+									socket.emit('message delete', common.encryptByAES({
+									   	'time' : data.time
+									}, commonKey));
+								}
+							}
+						});
+					}
+					if (targetPanel.getId() == 'PrivateMsgLogView') {
+						items.push({
+							xtype : 'button',
+							text : !!data.favorite ? 'お気に入り解除' : 'お気に入り追加',
+							enableToggle : true,
+							pressed : !!data.favorite,
+							toggleHandler : function(button, pushed) {
+								if (pushed) {
+									data.favorite = true;
+									button.setText('お気に入り解除');
+								} else {
+									data.favorite = false;
+									button.setText('お気に入り追加');
+								}
+							}
+						});
+					}
+					return items;
+				})()
+			}, {
+				autoWidth : true,
+				autoHeight : true,
+				// height : 100,
+				border : false,
+				bodyStyle : {
+					height : '1em'
+				},
+				layout : 'column',
+				items : (function() {
+					var items = [];
+					items.push({
+						// height : 50,
+						autoHeight : true,
+						// autoWidth : true,
+						columnWidth　: .99,
+						border : false,
+						bodyStyle : {
+							height : '1em;',
+							wordBreak : 'break-all',
+							fontFamily : 'monospace'	//等幅フォント
+						},
+						html : (function() {
+							var str = Ext.util.Format.htmlEncode(''+data.msg);
+							// console.log(JSON.stringify(str));
+							str = str.replace(
+								/(https?:\/\/[a-zA-Z0-9\-_.!?~*;:\/\@&=+\$,%#]+)/g,
+								'<a target="_blank" href="$1">$1</a>');
+							str = str.replace(
+								/\t/g,
+								'&nbsp;&nbsp;&nbsp;&nbsp;');
+							str = str.replace(
+								/\r\n|\n/g,
+								'<br />');
+							switch(data.effect) {
+								case 1:
+									str = '<div style="'+
+										'transform-origin:left top;-webkit-transform-origin:left top;-moz-transform-origin:left top;-ms-transform-origin:left top;-o-transform-origin:left top;'+
+										'transform:scale(0.6,0.6);-webkit-transform:scale(0.6,0.6);-moz-transform:scale(0.6,0.6);-ms-transform:scale(0.6,0.6);-o-transform:scale(0.6,0.6);'+
+										'">'+str+'</div>';
+									break;
+								case 2:
+									str = '<div style="font-size:2em;">'+str+'</div>';
+									break;
+								default:
+									break;
+							}
+							return str;
+						})()
+					});
+					if (noEncryptedData != null && noEncryptedData.imageData != null) {
+						var width = Math.min(noEncryptedData.imageWidth, 128);
+						items.push({
+							border : true,
+							width : width,
+							html : '<img style="max-width:'+width+'px;cursor:pointer;"' +
+								' src="'+noEncryptedData.imageData+'" />',
+							listeners : {
+								render : function(panel) {
+									panel.body.on('click', function() {
+										imageData = noEncryptedData.imageData;
+										imageViewWin.show();
+									});
+								}
+							}
+						});
+					}
+					return items;
+				})()
+			}]
+		});
+		msgPanel.doLayout();
+		//_msgPanel = msgPanel;
+		if (targetPanel.items.length > 100) {
+			targetPanel.remove(targetPanel.items.get(targetPanel.items.length-1), true);
+		}
+		targetPanel.insert(0, msgPanel);
+		targetPanel.doLayout();
+	};
+})();
 
 function showDesktopPopup(title, msg, showTime, focusTabID) {
 	if (

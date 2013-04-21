@@ -266,12 +266,12 @@ server.listen(port);
 
 io.sockets.on('connection', function (socket) {
 
-	function emit(targetSocket, name, data, callback) {
+	function emit(targetSocket, name, data, noEncryptData, callback) {
 		var client = clientMap[targetSocket.id];
 		// util.log('emit '+name+': ' + JSON.stringify(client));
-		targetSocket.emit(name, common.encryptByAES(data, client.commonKey), callback);
+		targetSocket.emit(name, common.encryptByAES(data, client.commonKey), noEncryptData, callback);
 	}
-	function broadcastEmit(thisSocket, name, data) {
+	function broadcastEmit(thisSocket, name, data, noEncryptData) {
 		for (var clientID in clientMap) {
 			// util.log('socket.id:'+socket.id +' clientID:'+clientID);
 			if (thisSocket.id == clientID) { continue; }
@@ -279,7 +279,7 @@ io.sockets.on('connection', function (socket) {
 			var targetSocket = io.sockets.socket(clientID);
 			if (targetSocket) {
 				// util.log('broadcast '+name+': ' + JSON.stringify(client));
-				targetSocket.emit(name, common.encryptByAES(data, client.commonKey));
+				targetSocket.emit(name, common.encryptByAES(data, client.commonKey), noEncryptData);
 			}
 		}
 	}
@@ -363,9 +363,10 @@ io.sockets.on('connection', function (socket) {
 			if (data.reconnect) { reconnect = true; }
 			broadcastEmit(socket, 'user add', {'users' : userData, 'reconnect' : reconnect });
 
-			socket.on('message send', function(str) {
-				var data = common.decryptByAES(str, commonKey);
+			socket.on('message send', function(encryptedData, noEncryptedData) {
+				var data = common.decryptByAES(encryptedData, commonKey);
 				if (!jsonValidate(socket, 'message_send', data)) { return; }
+				if (!jsonValidate(socket, 'message_image_send', noEncryptedData)) { return; }
 				var  msgTarget = data.msgTarget;
 				var isReply = data.isReply;
 				var msg = '' + data.msg;
@@ -389,13 +390,14 @@ io.sockets.on('connection', function (socket) {
 					'msg' : msg
 				};
 
-				emit(socket, 'message push', sendMsg);
+				emit(socket, 'message push', sendMsg, noEncryptedData);
 				if (sendMsg.isPrivate) {
 					var targetSocket = io.sockets.socket(msgTarget);
 					if (clientMap[msgTarget] != null && targetSocket != null) {
 						var callbackCatched = false;
 						emit(targetSocket, 'message push',
 							sendMsg,
+							noEncryptedData,
 							function(callbackData) {
 								callbackCatched = true;
 							}
@@ -414,7 +416,7 @@ io.sockets.on('connection', function (socket) {
 						});
 					}
 				} else {
-					broadcastEmit(socket, 'message push', sendMsg);
+					broadcastEmit(socket, 'message push', sendMsg, noEncryptedData);
 					msgQueue.add(sendMsg);
 				}
 			});

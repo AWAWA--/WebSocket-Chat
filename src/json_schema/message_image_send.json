@@ -1,0 +1,20 @@
+{
+	"type": ["object", "null"],
+	"properties": {
+		"imageWidth": {
+			"type": "integer",
+			"minimum": 1,
+			"maximum": 9999
+		},
+		"imageHeight": {
+			"type": "integer",
+			"minimum": 1,
+			"maximum": 9999
+		},
+		"imageData": {
+			"type": "string",
+			"maxLength": 1048576
+		}
+	},
+	"additionalProperties": false
+}
