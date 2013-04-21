@@ -530,8 +530,8 @@ Ext.onReady(function() {
 	 						id : 'MainMsg',
 	 						region : 'center',
 	 						enableKeyEvents : true,
-	 						grow : true,
-	 						preventScrollbars : true,
+	 						// grow : true,
+	 						// preventScrollbars : true,
 	 						style : {
 								fontSize : '1.2em'
 	 						},
@@ -641,6 +641,23 @@ Ext.onReady(function() {
 												'<canvas id="MainImage" style="border:1px solid silver;" />'
 										}
 										],
+										listeners : {
+											beforeshow : function(win) {
+												var canvas = document.getElementById('MainImage');
+												var winWidth = Math.min(canvas.width+win.getFrameWidth()+Ext.getScrollBarWidth(), Math.floor(Ext.getBody().getWidth()*0.9));
+												winWidth = Math.max(winWidth, 250);
+												var winHeight = Math.min(canvas.height+win.getFrameHeight()+Ext.getScrollBarWidth(), Math.floor(Ext.getBody().getHeight()*0.8));
+												winHeight = Math.max(winHeight, 100);
+												// console.log(winWidth + ' : ' + winHeight);
+												win.setSize(winWidth, winHeight);
+												win.center();
+											},
+											render : function(win) {
+												win.body.on('click', function() {
+													win.hide();
+												});
+											}
+										},
 										fbar : [
 										{
 											text : '削除する',
@@ -1251,12 +1268,14 @@ function handleMessage(data, noEncryptedData, callbackFn) {
 }
 
 var msgAdd = (function() {
-	var imageData = null;
+	var imageDef = null;
 	var imageID = 'MainImageView_'+new Date().getTime();
 	var imageViewWin = new Ext.Window({
 		//autoWidth : true,
+		minWidth : 100,
 		width : 500,
 		//autoHeight : true,
+		minHeight : 100,
 		height : 350,
 		buttonAlign : 'center',
 		closable : true,
@@ -1276,9 +1295,21 @@ var msgAdd = (function() {
 		],
 		listeners : {
 			beforeshow : function(win) {
-				if (imageData != null) {
-					document.getElementById(imageID).src = imageData;
+				if (imageDef != null) {
+					document.getElementById(imageID).src = imageDef.imageData;
+					var winWidth = Math.min(imageDef.imageWidth+win.getFrameWidth()+Ext.getScrollBarWidth(), Math.floor(Ext.getBody().getWidth()*0.9));
+					winWidth = Math.max(winWidth, 150);
+					var winHeight = Math.min(imageDef.imageHeight+win.getFrameHeight()+Ext.getScrollBarWidth(), Math.floor(Ext.getBody().getHeight()*0.8));
+					winHeight = Math.max(winHeight, 100);
+					// console.log(winWidth + ' : ' + winHeight);
+					win.setSize(winWidth, winHeight);
+					win.center();
 				}
+			},
+			render : function(win) {
+				win.body.on('click', function() {
+					win.hide();
+				});
 			}
 		},
 		fbar : [
@@ -1444,7 +1475,7 @@ var msgAdd = (function() {
 							listeners : {
 								render : function(panel) {
 									panel.body.on('click', function() {
-										imageData = noEncryptedData.imageData;
+										imageDef = noEncryptedData;
 										imageViewWin.show();
 									});
 								}
