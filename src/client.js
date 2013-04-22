@@ -1442,13 +1442,19 @@ var msgAdd = (function() {
 							// console.log(JSON.stringify(str));
 							str = str.replace(
 								/(https?:\/\/[a-zA-Z0-9\-_.!?~*;:\/\@&=+\$,%#]+)/g,
-								'<a target="_blank" href="$1">$1</a>');
+								'<a\u0000target="_blank"\u0000href="$1">$1</a>');
 							str = str.replace(
 								/\t/g,
 								'&nbsp;&nbsp;&nbsp;&nbsp;');
 							str = str.replace(
 								/\r\n|\n/g,
-								'<br />');
+								'<br\u0000/>');
+							str = str.replace(
+								/ /g,
+								'&nbsp;');
+							str = str.replace(
+								/\u0000/g,
+								' ');
 							switch(data.effect) {
 								case 1:
 									str = '<div style="'+
