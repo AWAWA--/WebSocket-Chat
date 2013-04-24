@@ -709,10 +709,12 @@ Ext.onReady(function() {
 									}, 
 									(Ext.getCmp('MainImgIcon').disabled ? null : (function() {
 										var canvas = document.getElementById('MainImage');
+										var imageData = canvas.toDataURL('image/png');
+										console.log('imageData length=' + imageData.length);
 										return {
 											imageWidth : canvas.width,
 											imageHeight : canvas.height,
-											imageData : canvas.toDataURL('image/png')
+											imageData : imageData
 										};
 									})())
 								);
@@ -1103,17 +1105,6 @@ function join() {
 
 		//参加者一覧のロード
 		userStore.loadData(data);
-		//共有メッセージのロード
-		var msgTab = Ext.getCmp('MainView');
-		var msgList = data.msgList;
-		for (var i=0,l=msgList.length;i<l;i++) {
-			msgAdd(msgTab, msgList[i]);
-		}
-		//共有お絵かきのロード
-		var figureList = data.figureList;
-		for (var i=0,l=figureList.length; i<l; i++) {
-			handleFigure(figureList[i]);
-		}
 
 		//プライベートメッセージ読み込み
 		if (localStorage['privateMsgLog']) {
@@ -1132,6 +1123,33 @@ function join() {
 		}
 
 		Ext.getCmp('MainMsg').focus();
+	});
+	socket.on('msg setup', function(str) {
+		var data = common.decryptByAES(str, commonKey);
+		//共有メッセージのロード
+		var msgTab = Ext.getCmp('MainView');
+		var msgList = data.msgList;
+		console.log('msg setup:list='+msgList.length+' hasMore='+data.hasMore);
+		for (var i=0,l=msgList.length;i<l;i++) {
+			// console.log('msdAdd start');
+			msgAdd(msgTab, msgList[i], null, !(l-i>1));
+			// console.log('msdAdd end');
+		}
+		if (!data.hasMore) {
+			Ext.getCmp('MainMsg').focus();
+		}
+	});
+	socket.on('figure setup', function(str) {
+		var data = common.decryptByAES(str, commonKey);
+		//共有お絵かきのロード
+		var figureList = data.figureList;
+		console.log('figure setup:list='+figureList.length+' hasMore='+data.hasMore);
+		for (var i=0,l=figureList.length; i<l; i++) {
+			handleFigure(figureList[i]);
+		}
+		if (!data.hasMore) {
+			Ext.getCmp('MainMsg').focus();
+		}
 	});
 	socket.on('user add', function(str) {
 		var data = common.decryptByAES(str, commonKey);
@@ -1325,7 +1343,8 @@ var msgAdd = (function() {
 	});
 	// imageViewWin.show();
 	// imageViewWin.hide();
-	return function(targetPanel, data, noEncryptedData) {
+	return function(targetPanel, data, noEncryptedData, doLayout) {
+		if (doLayout == null) { doLayout = true; }
 		var msgPanel = new Ext.Panel({
 			autoWidth : true,
 			autoHeight : true,
@@ -1492,13 +1511,13 @@ var msgAdd = (function() {
 				})()
 			}]
 		});
-		msgPanel.doLayout();
+		if (doLayout) { msgPanel.doLayout(); }
 		//_msgPanel = msgPanel;
 		if (targetPanel.items.length > 100) {
 			targetPanel.remove(targetPanel.items.get(targetPanel.items.length-1), true);
 		}
 		targetPanel.insert(0, msgPanel);
-		targetPanel.doLayout();
+		if (doLayout) { targetPanel.doLayout(); }
 	};
 })();
 

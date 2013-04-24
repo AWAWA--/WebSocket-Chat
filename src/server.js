@@ -354,10 +354,21 @@ io.sockets.on('connection', function (socket) {
 						userList.push(clientMap[i].userData);
 					}
 					return userList;
-				})(),
-				msgList : msgQueue.getAll(),
-				figureList : figureQueue.getAll()
+				})()
 			});
+
+			var PUSH_SIZE = 100;
+			var msgList = msgQueue.getAll();
+			for (var i=0,l=msgList.length; i<l; i=i+PUSH_SIZE) {
+				var sendList = msgList.slice(i, i+PUSH_SIZE);
+				emit(socket, 'msg setup', { msgList : sendList, hasMore : (l-i>PUSH_SIZE) });
+			}
+
+			var figureList = figureQueue.getAll();
+			for (var i=0,l=figureList.length; i<l; i=i+PUSH_SIZE) {
+				var sendList = figureList.slice(i, i+PUSH_SIZE);
+				emit(socket, 'figure setup', { figureList : sendList, hasMore : (l-i>PUSH_SIZE) });
+			}
 
 			var reconnect = false;
 			if (data.reconnect) { reconnect = true; }
@@ -366,7 +377,7 @@ io.sockets.on('connection', function (socket) {
 			socket.on('message send', function(encryptedData, noEncryptedData) {
 				var data = common.decryptByAES(encryptedData, commonKey);
 				if (!jsonValidate(socket, 'message_send', data)) { return; }
-				if (!jsonValidate(socket, 'message_image_send', noEncryptedData)) { return; }
+				if (noEncryptedData != null && !jsonValidate(socket, 'message_image_send', noEncryptedData)) { return; }
 				var  msgTarget = data.msgTarget;
 				var isReply = data.isReply;
 				var msg = '' + data.msg;

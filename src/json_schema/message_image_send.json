@@ -1,5 +1,5 @@
 {
-	"type": ["object", "null"],
+	"type": "object",
 	"properties": {
 		"imageWidth": {
 			"type": "integer",
@@ -13,8 +13,9 @@
 		},
 		"imageData": {
 			"type": "string",
-			"maxLength": 1048576
+			"maxLength": 2097152
 		}
 	},
+	"required": [ "imageWidth", "imageHeight", "imageData" ],
 	"additionalProperties": false
 }
