@@ -62,8 +62,14 @@ Ext.EventManager.on(global, 'unload', function() {
 		socket = null;
 	}
 });
+
 Ext.onReady(function() {
-	
+
+	//ファイルのドラッグ誤操作を防止
+	Ext.EventManager.on(document.body, 'dragenter', function(e) { e.stopEvent(); })
+	Ext.EventManager.on(document.body, 'dragover', function(e) { e.stopEvent(); })
+	Ext.EventManager.on(document.body, 'drop', function(e) { e.stopEvent(); })
+
 	Ext.QuickTips.init();
 	Ext.apply(Ext.QuickTips.getQuickTip(), {
 		maxWidth: 200,
@@ -549,9 +555,10 @@ Ext.onReady(function() {
 											// console.log(imageWidth + ' : ' + imageHeight);
 											if (imageWidth == 1 && imageHeight == 1) { return; }
 											var scale = (function() {
-												var MAX_PIXEL = 1024;
-												if (imageWidth <= MAX_PIXEL && imageHeight <= MAX_PIXEL) { return 1; }
-												return MAX_PIXEL / Math.max(imageWidth, imageHeight);
+												var IMAGE_MAX_WIDTH = APP_CONFIG.IMAGE_MAX_WIDTH;
+												var IMAGE_MAX_HEIGHT = APP_CONFIG.IMAGE_MAX_HEIGHT;
+												if (imageWidth <= IMAGE_MAX_WIDTH && imageHeight <= IMAGE_MAX_HEIGHT) { return 1; }
+												return Math.min(IMAGE_MAX_WIDTH/imageWidth, IMAGE_MAX_HEIGHT/imageHeight);
 											})();
 											// console.log('scale = ' + scale);
 											var canvas = document.getElementById('MainImage');
@@ -576,11 +583,11 @@ Ext.onReady(function() {
 										img.src = event.target.result;
 									};
 
-	 								dom.onpaste = function(event) {
+									Ext.EventManager.on(dom, 'paste', function(event) {
 										try {
 		 									// console.log(event.clipboardData);
 		 									// console.log(event.clipboardData.items);
-											var dataItem = event.clipboardData.items[0];
+											var dataItem = event.browserEvent.clipboardData.items[0];
 											// console.log(dataItem);
 											var file = dataItem.getAsFile();
 											// console.log(file);
@@ -592,7 +599,24 @@ Ext.onReady(function() {
 										} catch(e) {
 											console.log(e);
 										}
-	 								};
+	 								});
+
+									Ext.EventManager.on(dom, 'dragenter', function(event) {
+										textField.getEl().highlight();
+									});
+									Ext.EventManager.on(dom, 'drop', function(event) {
+										try {
+											var file = event.browserEvent.dataTransfer.files[0];
+											// console.log(file);
+											var dataType = file.type;
+											// console.log(dataType);
+											if (/^image\//.test(dataType)) {
+												reader.readAsDataURL(file);
+											}
+										} catch(e) {
+											console.log(e);
+										}
+									});
 	 							},
 	 							keydown : function(textField, event) {
 	 								if (event.getKey() == 13) {
@@ -709,11 +733,13 @@ Ext.onReady(function() {
 									}, 
 									(Ext.getCmp('MainImgIcon').disabled ? null : (function() {
 										var canvas = document.getElementById('MainImage');
+										var imageWidth = canvas.width;
+										var imageHeight = canvas.height;
 										var imageData = canvas.toDataURL('image/png');
-										console.log('imageData length=' + imageData.length);
+										console.log('imageData width='+imageWidth+' height='+imageHeight+' length='+imageData.length);
 										return {
-											imageWidth : canvas.width,
-											imageHeight : canvas.height,
+											imageWidth : imageWidth,
+											imageHeight : imageHeight,
 											imageData : imageData
 										};
 									})())
@@ -1157,7 +1183,7 @@ function join() {
 		for (var i=0,l=readResult.records.length; i<l; i++) {
 			userStore.addSorted(readResult.records[i]);
 		}
-		if (!data.reconnect && config.notification_userAddDel) {
+		if (config.notification_userAddDel) {
 			showDesktopPopup(
 				'ユーザ参加',
 				'「' + data.users.name + '」 が参加しました。',
@@ -1459,9 +1485,52 @@ var msgAdd = (function() {
 						html : (function() {
 							var str = Ext.util.Format.htmlEncode(''+data.msg);
 							// console.log(JSON.stringify(str));
-							str = str.replace(
-								/(https?:\/\/[a-zA-Z0-9\-_.!?~*;:\/\@&=+\$,%#]+)/g,
-								'<a\u0000target="_blank"\u0000href="$1">$1</a>');
+							var replaceRules = [
+								[
+									/(https?\:\/\/(?:[a-zA-Z0-9\-\_\.\!\?\~\*\;\:\/\@\&\=\+\$\,\%\#]+(?=&gt;)|[a-zA-Z0-9\-\_\.\!\?\~\*\;\:\/\@\&\=\+\$\,\%\#]+))/g,
+									/(https?\:\/\/(?:[a-zA-Z0-9\-\_\.\!\?\~\*\;\:\/\@\&\=\+\$\,\%\#]+(?=&gt;)|[a-zA-Z0-9\-\_\.\!\?\~\*\;\:\/\@\&\=\+\$\,\%\#]+))/g,
+									function() {
+										var url = arguments[1];
+										return '<a target="_blank" href="'+url+'">'+url+'</a>'
+									}
+								],
+								[
+									/(&lt;(?:\\\\|[a-zA-Z]:\\).+?&gt;)/g,
+									/&lt;((?:\\\\|[a-zA-Z]:\\).+?)&gt;/g,
+									function() {
+										var url = arguments[1];
+										var hrefUrl = url;
+										if (!Ext.isIE) {
+											hrefUrl = encodeURI(hrefUrl.replace(/\\/g, '/'));
+											hrefUrl = 'file:' + (hrefUrl.indexOf('/')==0 ? '' : '///') + hrefUrl;
+										}
+										return '&lt;<a target="_blank" href="'+hrefUrl+'">'+url+'</a>&gt;'
+									}
+								]
+							];
+							function doReplace(str, ruleIndex) {
+								if (ruleIndex == replaceRules.length) { return str; }
+								var splitReg = replaceRules[ruleIndex][0];
+								var replaceReg = replaceRules[ruleIndex][1];
+								var replaced = replaceRules[ruleIndex][2];
+								var split = str.split(splitReg);
+								// console.log('split('+ruleIndex+'): '+JSON.stringify(split));
+								var newStr = '';
+								for (var i=0,l=split.length; i<l; i++) {
+									if (i%2 == 0) {
+										newStr += doReplace(split[i], ruleIndex+1); 
+										continue;
+									} else {
+										var before = split[i];
+										var after = before.replace(replaceReg, replaced).replace(/ /g, '\u0000'); 
+										// console.log('before: '+before);
+										// console.log('after: '+after);
+										newStr += after;
+									}
+								}
+								return newStr;
+							}
+							str = doReplace(str, 0);
 							str = str.replace(
 								/\t/g,
 								'&nbsp;&nbsp;&nbsp;&nbsp;');

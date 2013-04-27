@@ -12,6 +12,11 @@ var APP_CONFIG = {
 	/** お絵かきキューのサイズ（保存するログのサイズ） */
 	, FIGURE_QUEUE_SIZE : 35
 
+	/** 添付画像の最大横幅(ピクセル) */
+	, IMAGE_MAX_WIDTH : 1280
+	/** 添付画像の最大縦幅(ピクセル) */
+	, IMAGE_MAX_HEIGHT : 1024
+
 	/** BASIC認証を行うかどうか */
 	, BASIC_AUTH : false
 	/** BASIC認証を行う際のユーザID/パスワード設定ファイル */
