@@ -1,13 +1,19 @@
 <!DOCTYPE html>
-<html manifest="ws_chat.manifest">
-<!--
 <html>
+<!--
+# config.js内の設定次第で、htmlタグに下記属性がセットされる
+<html manifest="ws_chat.manifest">
 -->
 <head>
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 	<meta http-equiv="X-UA-Compatible" content="IE=edge" />
 	<title>ws_chat</title>
 	<link rel="stylesheet" type="text/css" href="extjs/resources/css/ext-all-notheme.css"/>
+	<style type="text/css" title="wsChatCSS">
+	.chatMessage {
+		font-size : 1em;
+	}
+	</style>
 	<script type="text/javascript">
 		var theme = 'blue';
 		var reg = /theme=([^&]+)/;

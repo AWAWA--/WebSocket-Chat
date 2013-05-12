@@ -54,6 +54,7 @@ if (global.applicationCache) {
 }
 
 Ext.EventManager.on(global, 'unload', function() {
+	localStorage.config = JSON.stringify(config);
 	if (myName != null && privateMsgLog.length > 0) {
 		localStorage['privateMsgLog'] = JSON.stringify(privateMsgLog);
 	}
@@ -92,7 +93,8 @@ Ext.onReady(function() {
 		'notification_privateReplyMsg' : true,
 		'notification_privateReplyMsgTime' : -1,
 		'notification_userAddDel' : true,
-		'notification_userAddDelTime' : 3.5
+		'notification_userAddDelTime' : 3.5,
+		'messagePanel_fontSize' : 100
 	});
 	console.log('config : ' + JSON.stringify(config));
 	
@@ -321,7 +323,6 @@ Ext.onReady(function() {
 	var toolBar = new Ext.Toolbar({
 		autoHeight : true,
 		items: [
-			'-',
 			{
 				text : 'デスクトップ通知を許可',
 				listeners : {
@@ -337,6 +338,11 @@ Ext.onReady(function() {
 							global.webkitNotifications.requestPermission(function() {
 								console.log('permission:'+global.webkitNotifications.checkPermission());
 							});
+						} else {
+							Ext.MessageBox.alert(
+								'　',
+								'デスクトップ通知は既に許可されています。'
+							);
 						}
 					}
 				}
@@ -387,7 +393,52 @@ Ext.onReady(function() {
 					}
 				}
 			},
-			'-'
+			'->',
+			'文字サイズ',
+			new Ext.slider.SingleSlider({
+				width: 100,
+				value: config.messagePanel_fontSize,
+				increment: 10,
+				minValue: 50,
+				maxValue: 200,
+				listeners : (function() {
+					var chatMessageCSS = null;
+					try {
+						for (var i=0,l=document.styleSheets.length; i<l; i++) {
+							var styleSheet = document.styleSheets[i];
+							// console.log(styleSheet.title);
+							if (styleSheet.title == 'wsChatCSS') {
+								for (var m=0,n=styleSheet.rules.length; m<n; m++) {
+									var rule = styleSheet.rules[m];
+									// console.log(rule.selectorText);
+									if (rule.selectorText == '.chatMessage') {
+										chatMessageCSS = rule;
+										break;
+									}
+								}
+								break;
+							}
+						}
+					} catch (e) { console.log(e); }
+					return {
+						render : function(slider) {
+							if (chatMessageCSS != null) {
+								chatMessageCSS.style.fontSize = (config.messagePanel_fontSize/100) + 'em';
+								console.log('fontSize : ' + chatMessageCSS.style.fontSize);
+							}
+						},
+						changecomplete : function(slider, newValue, thumb) {
+							if (chatMessageCSS != null) {
+								chatMessageCSS.style.fontSize = (newValue/100) + 'em';
+								console.log('fontSize : ' + chatMessageCSS.style.fontSize);
+								config.messagePanel_fontSize = newValue;
+								localStorage.config = JSON.stringify(config);
+							}
+						}
+					};
+				})()
+			}),
+			' '
 		]
 	});
 	
@@ -1482,6 +1533,7 @@ var msgAdd = (function() {
 							wordBreak : 'break-all',
 							fontFamily : 'monospace'	//等幅フォント
 						},
+						bodyCssClass : 'chatMessage',
 						html : (function() {
 							var str = Ext.util.Format.htmlEncode(''+data.msg);
 							// console.log(JSON.stringify(str));

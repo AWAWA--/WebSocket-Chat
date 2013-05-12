@@ -4,6 +4,8 @@ var express = require('express')
   , fs = require('fs')
   , os = require('os')
   , path = require('path')
+  , readline = require('readline')
+  , stream = require('stream')
   , util = require('util')
   , JaySchema = require('jayschema');
 
@@ -61,6 +63,43 @@ app.get('/command/shutdown', function(req, res) {
 	}
 	res.send('OK');
 	process.exit();
+});
+
+var NullWriter = function() {
+  this.writable = true;
+  this.buf = [];
+};
+util.inherits(NullWriter, stream.Stream);
+NullWriter.prototype._write = function(){};
+NullWriter.prototype.write = function(){};
+NullWriter.prototype.end = function(){};
+
+app.get('/ws_chat.html', function(req, res) {
+	var reader = fs.createReadStream(path.join(__dirname, 'ws_chat.html'));
+	reader.on('close', function() {
+		res.end();
+	});
+	var lineNum = 0;
+	readline.createInterface({
+		input : reader,
+		output : new NullWriter()
+	}).on('line', function(line) {
+		lineNum++;
+		var sendData = line;
+		if (lineNum <= 5 && line.trim() == '<html>') {
+			if (APP_CONFIG.USE_OFFLINE_CACHE) {
+				sendData = '<html manifest="ws_chat.manifest">' + os.EOL;
+			} else {
+				sendData = '<html>' + os.EOL;
+			}
+		} else if (line.trim() == '<title>ws_chat</title>') {
+			if (APP_CONFIG.TITLE != null && APP_CONFIG.TITLE != '') {
+				sendData = '<title>'+APP_CONFIG.TITLE+' - ws_chat</title>' + os.EOL;
+			}
+		}
+		// console.log(lineNum+': '+sendData.replace(/\r\n/g,'\\r\\n').replace(/\n/g,'\\n'));
+		res.write(sendData);
+	});
 });
 
 app.get('/ws_chat.manifest', (function() {
