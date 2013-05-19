@@ -1380,7 +1380,14 @@ function join() {
 			if (equals) { removeList.push(targetItem); }
 		}
 		for (var i=0,l=removeList.length; i<l; i++) {
-			targetPanel.remove(removeList[i], true);
+			(function(msgPanel) {
+				msgPanel.getEl().slideOut('r', {
+					duration: 0.5,
+					callback : function() {
+						targetPanel.remove(msgPanel, true);
+					}
+				});
+			})(removeList[i]);
 		}
 	});
 	socket.on('figure push', function(str) {
