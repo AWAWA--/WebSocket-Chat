@@ -303,25 +303,28 @@ var jsonValidate = (function() {
 
 server.listen(port);
 
-io.sockets.on('connection', function (socket) {
 
-	function emit(targetSocket, name, data, noEncryptData, callback) {
-		var client = clientMap[targetSocket.id];
-		// util.log('emit '+name+': ' + JSON.stringify(client));
-		targetSocket.emit(name, common.encryptByAES(data, client.commonKey), noEncryptData, callback);
-	}
-	function broadcastEmit(thisSocket, name, data, noEncryptData) {
-		for (var clientID in clientMap) {
-			// util.log('socket.id:'+socket.id +' clientID:'+clientID);
-			if (thisSocket.id == clientID) { continue; }
-			var client = clientMap[clientID];
-			var targetSocket = io.sockets.socket(clientID);
-			if (targetSocket) {
-				// util.log('broadcast '+name+': ' + JSON.stringify(client));
-				targetSocket.emit(name, common.encryptByAES(data, client.commonKey), noEncryptData);
-			}
+//メッセージ送信用メソッド
+function emit(targetSocket, name, data, noEncryptData, callback) {
+	var client = clientMap[targetSocket.id];
+	// util.log('emit '+name+': ' + JSON.stringify(client));
+	targetSocket.emit(name, common.encryptByAES(data, client.commonKey), noEncryptData, callback);
+}
+function broadcastEmit(thisSocket, name, data, noEncryptData) {
+	for (var clientID in clientMap) {
+		// util.log('socket.id:'+socket.id +' clientID:'+clientID);
+		if (thisSocket != null && thisSocket.id == clientID) { continue; }
+		var client = clientMap[clientID];
+		var targetSocket = io.sockets.socket(clientID);
+		if (targetSocket) {
+			// util.log('broadcast '+name+': ' + JSON.stringify(client));
+			targetSocket.emit(name, common.encryptByAES(data, client.commonKey), noEncryptData);
 		}
 	}
+}
+
+
+io.sockets.on('connection', function (socket) {
 
 	socket.on('handshake call', function(data) {
 		// util.log('handshake call: ' + JSON.stringify(data));
@@ -507,6 +510,35 @@ io.sockets.on('connection', function (socket) {
 	});
 
 });
+
+//拡張クライアントの読み込み
+(function() {
+	var rootPath = path.join(__dirname, 'client_bot');
+	var files = fs.readdirSync(rootPath);
+	var reg = /^(.+)\.js$/;
+	var callbackObject = {
+		broadcast : function(msg) {
+			// console.log(JSON.stringify(msg));
+			broadcastEmit(null, 'message push', msg, null);
+		}
+	};
+	for (var i=0,l=files.length; i<l; i++) {
+		var fileName = files[i];
+		if (!reg.test(fileName)) { continue; }
+		var modulePath = path.join(rootPath, fileName);
+		// console.log('modulePath: ' + modulePath);
+		var module = require(modulePath);
+		var userData = module.register(callbackObject);
+		// console.log('userData: ' + JSON.stringify(userData));
+		if (userData != null) {
+			clientMap[userData.id] = {
+				userData : userData,
+				commonKey : null
+			};
+		}
+	}
+})();
+
 
 function writeDataLog(log) {
 	fs.writeFileSync(dataLogFile, JSON.stringify({

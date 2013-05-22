@@ -34,7 +34,7 @@ common.encryptByAES = (function() {
 		});
 	}
 	return function(data, key) {
-		if (!APP_CONFIG.ENCRYPTION) { return data; }
+		if (!APP_CONFIG.ENCRYPTION || key == null) { return data; }
 		// this.log('encryptByAES:0');
 		var str = unicodeEscape(JSON.stringify(data));
 		// this.log('encryptByAES:1');
@@ -50,7 +50,7 @@ common.encryptByAES = (function() {
 
 common.decryptByAES = (function() {
 	return function(str, key) {
-		if (!APP_CONFIG.ENCRYPTION) { return str; }
+		if (!APP_CONFIG.ENCRYPTION || key == null) { return str; }
 		// this.log('decryptByAES:0');
 		var decryptedData = cryptico.decryptAESCBC(str, key);
 		// this.log('decryptByAES:1');
