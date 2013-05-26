@@ -2,7 +2,7 @@
 　* サンプルBot
  */
 
-var enable = true;
+var enable = false;
 var server = {
 	broadcast : function() {}
 };
@@ -14,6 +14,16 @@ var userData = {
 	loginDate : 0,
 	userAgent : '-'
 };
+
+exports.register = function(_server) {
+	if (!enable) { return null; }
+	server = _server;
+	return userData;
+};
+
+if (!enable) {
+	return;
+}
 
 //TODO
 setInterval(function() {
@@ -29,12 +39,4 @@ setInterval(function() {
 		'msg' : 'hoge'
 	});
 }, 60*1000);
-/*
-*/
-
-exports.register = function(_server) {
-	if (!enable) { return null; }
-	server = _server;
-	return userData;
-};
 
