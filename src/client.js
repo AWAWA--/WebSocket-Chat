@@ -1606,11 +1606,6 @@ var msgAdd = (function() {
 								}
 							}
 						});
-						if ((data.effect & (1<<2)) == (1<<2)) {
-							setTimeout(function() {
-								messageDelete();
-							}, 5 * 1000);
-						}
 					}
 					if (targetPanel.getId() == 'PrivateMsgLogView') {
 						items.push({

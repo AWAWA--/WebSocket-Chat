@@ -110,7 +110,7 @@ app.get('/ws_chat.manifest', (function() {
 	function write(str) {
 		manifestData += str;
 	}
-	function writeCacheEntry(dir) {
+	function writeCacheEntry(dir, recursive) {
 		var rootPath = path.join(__dirname, dir);
 		var files = fs.readdirSync(rootPath);
 		for (var i=0,l=files.length; i<l; i++) {
@@ -118,7 +118,9 @@ app.get('/ws_chat.manifest', (function() {
 			if (reg.test(fileName)) { continue; }
 			var stats = fs.statSync(path.join(rootPath, fileName));
 			if (stats.isDirectory()) {
-				writeCacheEntry(dir + '/' + fileName);
+				if (recursive) {
+					writeCacheEntry(dir + '/' + fileName, recursive);
+				}
 				continue;
 			}
 			// util.log(JSON.stringify(stats));
@@ -131,7 +133,9 @@ app.get('/ws_chat.manifest', (function() {
 	}
 	write('CACHE MANIFEST' + eol);
 	write('CACHE:' + eol);
-	writeCacheEntry('.');
+	writeCacheEntry('.', false);
+	writeCacheEntry('./extjs', true);
+	writeCacheEntry('./cryptico', true);
 	write('./socket.io/socket.io.js' + eol);
 	write(eol);
 	write('NETWORK:' + eol);
@@ -308,6 +312,7 @@ server.listen(port);
 function emit(targetSocket, name, data, noEncryptData, callback) {
 	var client = clientMap[targetSocket.id];
 	// util.log('emit '+name+': ' + JSON.stringify(client));
+	if (client == null) { return; }
 	targetSocket.emit(name, common.encryptByAES(data, client.commonKey), noEncryptData, callback);
 }
 function broadcastEmit(thisSocket, name, data, noEncryptData) {
@@ -471,6 +476,18 @@ io.sockets.on('connection', function (socket) {
 				} else {
 					broadcastEmit(socket, 'message push', sendMsg, noEncryptedData);
 					msgQueue.add(sendMsg);
+
+					if ((data.effect & (1<<2)) == (1<<2)) {
+						setTimeout(function() {
+							var sendData = {
+								"id": socket.id,
+								"time": sendMsg.time
+							};
+							emit(socket, 'message delete', sendData);
+							broadcastEmit(socket, 'message delete', sendData);
+							msgQueue.delete(sendData);
+						}, 5 * 1000);
+					}
 				}
 			});
 
