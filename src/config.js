@@ -7,6 +7,9 @@ var APP_CONFIG = {
 	/** チャット画面のタイトル(HTMLのtitleタグ)に表示する文字列 */
 	, TITLE : ''
 
+	/** 投降メッセージの自動削除コマンドを使用した際、削除されるまでの秒数 */
+	, DELETE_MSG_TIMER_SECONDS : 5
+
 	/** 自前で通信データを暗号化するかどうか。ポート番号443(SSL)を使用している場合には不要なのでfalseにすること */
 	, ENCRYPTION : true
 

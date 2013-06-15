@@ -1658,7 +1658,7 @@ var msgAdd = (function() {
 									/(https?\:\/\/(?:[a-zA-Z0-9\-\_\.\!\?\~\*\;\:\/\@\&\=\+\$\,\%\#]+(?=&gt;)|[a-zA-Z0-9\-\_\.\!\?\~\*\;\:\/\@\&\=\+\$\,\%\#]+))/g,
 									function() {
 										var url = arguments[1];
-										return '<a target="_blank" href="'+url+'">'+url+'</a>'
+										return '<a target="_blank" style="text-shadow: 1px 0px 1px white;" href="'+url+'">'+url+'</a>'
 									}
 								],
 								[
@@ -1711,14 +1711,17 @@ var msgAdd = (function() {
 								/\u0000/g,
 								' ');
 
+							if (data.color != null && data.color != '') {
+								str = '<span style="color:'+data.color+';">'+str+'</span>';
+							}
+							if ((data.effect & (1<<0)) == (1<<0)) {
+								str = '<span style="font-size:0.6em;">'+str+'</span>';
+							}
 							if ((data.effect & (1<<1)) == (1<<1)) {
 								str = '<span style="font-size:2em;">'+str+'</span>';
 							}
-							if ((data.effect & (1<<0)) == (1<<0)) {
-								str = '<div style="'+
-									'transform-origin:left top;-webkit-transform-origin:left top;-moz-transform-origin:left top;-ms-transform-origin:left top;-o-transform-origin:left top;'+
-									'transform:scale(0.6,0.6);-webkit-transform:scale(0.6,0.6);-moz-transform:scale(0.6,0.6);-ms-transform:scale(0.6,0.6);-o-transform:scale(0.6,0.6);'+
-									'">'+str+'</div>';
+							if ((data.effect & (1<<2)) == (1<<2)) {
+								str += '&nbsp;<span style="font-size:0.6em;">※このメッセージは'+APP_CONFIG.DELETE_MSG_TIMER_SECONDS+'秒後に消去されます</span>';
 							}
 
 							return str;

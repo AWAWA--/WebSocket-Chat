@@ -445,6 +445,7 @@ io.sockets.on('connection', function (socket) {
 					'host' : userData.host,
 					'addr' : userData.addr,
 					'effect' : data.effect,
+					'color' : data.color,
 					'msg' : msg
 				};
 
@@ -486,7 +487,7 @@ io.sockets.on('connection', function (socket) {
 							emit(socket, 'message delete', sendData);
 							broadcastEmit(socket, 'message delete', sendData);
 							msgQueue.delete(sendData);
-						}, 5 * 1000);
+						}, APP_CONFIG.DELETE_MSG_TIMER_SECONDS * 1000);
 					}
 				}
 			});
