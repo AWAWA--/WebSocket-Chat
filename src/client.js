@@ -1654,8 +1654,8 @@ var msgAdd = (function() {
 							// console.log(JSON.stringify(str));
 							var replaceRules = [
 								[
-									/(https?\:\/\/(?:[a-zA-Z0-9\-\_\.\!\?\~\*\;\:\/\@\&\=\+\$\,\%\#]+(?=&gt;)|[a-zA-Z0-9\-\_\.\!\?\~\*\;\:\/\@\&\=\+\$\,\%\#]+))/g,
-									/(https?\:\/\/(?:[a-zA-Z0-9\-\_\.\!\?\~\*\;\:\/\@\&\=\+\$\,\%\#]+(?=&gt;)|[a-zA-Z0-9\-\_\.\!\?\~\*\;\:\/\@\&\=\+\$\,\%\#]+))/g,
+									/(https?\:\/\/(?:[a-zA-Z0-9\-\_\.\!\?\~\*\;\:\/\@\&\=\+\$\,\%\#\(\)\[\]\'\^\\]+(?=&gt;)|[a-zA-Z0-9\-\_\.\!\?\~\*\;\:\/\@\&\=\+\$\,\%\#\(\)\[\]\'\^\\]+))/g,
+									/(https?\:\/\/(?:[a-zA-Z0-9\-\_\.\!\?\~\*\;\:\/\@\&\=\+\$\,\%\#\(\)\[\]\'\^\\]+(?=&gt;)|[a-zA-Z0-9\-\_\.\!\?\~\*\;\:\/\@\&\=\+\$\,\%\#\(\)\[\]\'\^\\]+))/g,
 									function() {
 										var url = arguments[1];
 										return '<a target="_blank" style="text-shadow: 1px 0px 1px white;" href="'+url+'">'+url+'</a>'
@@ -1715,13 +1715,13 @@ var msgAdd = (function() {
 								str = '<span style="color:'+data.color+';">'+str+'</span>';
 							}
 							if ((data.effect & (1<<0)) == (1<<0)) {
-								str = '<span style="font-size:0.6em;">'+str+'</span>';
+								str = '<div style="font-size:0.6em;">'+str+'</div>';
 							}
 							if ((data.effect & (1<<1)) == (1<<1)) {
-								str = '<span style="font-size:2em;">'+str+'</span>';
+								str = '<div style="font-size:2em;">'+str+'</div>';
 							}
 							if ((data.effect & (1<<2)) == (1<<2)) {
-								str += '&nbsp;<span style="font-size:0.6em;">※このメッセージは'+APP_CONFIG.DELETE_MSG_TIMER_SECONDS+'秒後に消去されます</span>';
+								str += '<div style="font-size:0.6em;text-align:right;">※このメッセージは'+APP_CONFIG.DELETE_MSG_TIMER_SECONDS+'秒後に消去されます</div>';
 							}
 
 							return str;
