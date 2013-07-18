@@ -1569,6 +1569,31 @@ var msgAdd = (function() {
 						fontSize : 'small'
 					}
 				},
+				listeners : {
+					render : function(panel) {
+						setTimeout(function() {
+							//Chrome28で、ヘッダ行の高さが0でレンダリングされる場合があったので、回避策としてmin-heightを設定する
+							var height = 10;
+							var children = [].
+								concat(panel.findByType('panel')).
+								concat(panel.findByType('button'));
+							for (var i=0,l=children.length; i<l; i++) {
+								var component = children[i];
+								// console.log(component.getId() + ' ' + component.getXType() + ' ' + component.getHeight());
+								if (component.getHeight() > height) {
+									height = component.getHeight();
+								}
+							}
+							var dom = panel.getEl().dom;
+							if (dom.getElementsByClassName) {
+								var innerPanel = dom.getElementsByClassName('x-box-inner');
+								if (innerPanel.length > 0) {
+									innerPanel[0].style.minHeight = height + 'px';
+								}
+							}
+						}, 1);
+					}
+				},
 				items :
 				(function() {
 					var items = [];
