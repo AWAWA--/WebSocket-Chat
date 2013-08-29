@@ -64,6 +64,88 @@ Ext.EventManager.on(global, 'unload', function() {
 	}
 });
 
+var NotificationUtil = {
+	/**
+	 * @see http://www.w3.org/TR/notifications/
+	 * @see http://dev.chromium.org/developers/design-documents/desktop-notifications/api-specification
+	 */
+	isSupported : (global.Notification != null || global.webkitNotifications != null),
+	checkPermission : function() {
+		if (!this.isSupported) { return 'denied'; }
+		if (global.Notification.permission) {
+			return global.Notification.permission;
+		}
+		switch(global.webkitNotifications.checkPermission()) {
+			case 0: //PERMISSION_ALLOWED
+				return 'granted';
+			case 1: //PERMISSION_NOT_ALLOWED
+				return 'default';
+			case 2: //PERMISSION_DENIED
+				return 'denied';
+		}
+		return 'denied';
+	},
+	requestPermission : function(callback) {
+		if (!this.isSupported) { return; }
+		if (global.Notification) {
+			global.Notification.requestPermission(callback);
+		} else if (global.webkitNotifications) {
+			global.webkitNotifications.requestPermission(callback);
+		}
+	},
+	createNotification : function(title, option, eventHandler) {
+		if (!this.isSupported) { return; }
+		var notification;
+		if (global.Notification) {
+			notification = new global.Notification(title, {
+				titleDir : option.titleDir,
+				body : option.body,
+				bodyDir : option.bodyDir,
+				tag : option.tag || new Date().getTime(), //tagが同じメッセージは追加でなく置き換えになる
+				iconUrl : option.iconUrl,
+				icon : option.iconUrl //for GoogleChrome
+  			});
+			if (eventHandler.onclick) {
+				notification.onclick = function() { eventHandler.onclick.apply(notification, arguments); }
+			}
+			if (eventHandler.onshow) {
+				notification.onshow = function() { eventHandler.onshow.apply(notification, arguments); }
+			}
+			if (eventHandler.onerror) {
+				notification.onerror = function() { eventHandler.onerror.apply(notification, arguments); }
+			}
+			if (eventHandler.onclose) {
+				notification.onclose = function() { eventHandler.onclose.apply(notification, arguments); }
+			}
+		} else if (global.webkitNotifications) {
+			notification = global.webkitNotifications.createNotification(
+				option.iconUrl,
+				title,
+				option.body
+			);
+			if (!notification.close) {
+				notification.close = function() { notification.cancel(); }
+			}
+			if (eventHandler.onclick) {
+				notification.onclick = function() { eventHandler.onclick.apply(notification, arguments); }
+			}
+			if (eventHandler.onshow) {
+				notification.ondisplay = function() { eventHandler.onshow.apply(notification, arguments); }
+			}
+			if (eventHandler.onerror) {
+				notification.onerror = function() { eventHandler.onerror.apply(notification, arguments); }
+			}
+			if (eventHandler.onclose) {
+				notification.onclose = function() { eventHandler.onclose.apply(notification, arguments); }
+			}
+			notification.show();
+		};
+		// console.log('createNotification: ' + notification);
+		return notification;
+	}
+
+};
+
 Ext.onReady(function() {
 
 	//ファイルのドラッグ誤操作を防止
@@ -327,16 +409,15 @@ Ext.onReady(function() {
 				text : 'デスクトップ通知を許可',
 				listeners : {
 					click : function() {
-						if (!global.webkitNotifications) {
+						if (!NotificationUtil.isSupported) {
 							Ext.MessageBox.alert(
 								'　',
 								'お使いのブラウザはデスクトップ通知に対応していません。'
 								+'<br />GoogleChromeの最新版をお使いください。'
 							);
-						} else if (global.webkitNotifications.checkPermission() != 0) {
-							console.log('permission:'+global.webkitNotifications.checkPermission());
-							global.webkitNotifications.requestPermission(function() {
-								console.log('permission:'+global.webkitNotifications.checkPermission());
+						} else if (NotificationUtil.checkPermission() != 'granted') {
+							NotificationUtil.requestPermission(function() {
+								console.log('permission:'+NotificationUtil.checkPermission());
 							});
 						} else {
 							Ext.MessageBox.alert(
@@ -1121,19 +1202,15 @@ function showInitDialog() {
 			}
 			myName = text;
 
-			if (
-				global.webkitNotifications &&
-				global.webkitNotifications.checkPermission() != 0
-			) {
+			if (NotificationUtil.isSupported && NotificationUtil.checkPermission() != 'granted') {
 				Ext.MessageBox.show({
 			 	   title:'情報',
 			 	   msg: '通知機能が有効になっていません。<br />デスクトップ通知を許可してください。',
 			 	   buttons: Ext.Msg.OK,
 			 	   closable : false,
 			 	   fn: function(button, text) {
-						console.log('permission:'+global.webkitNotifications.checkPermission());
-						global.webkitNotifications.requestPermission(function() {
-							console.log('permission:'+global.webkitNotifications.checkPermission());
+						NotificationUtil.requestPermission(function() {
+							console.log('permission:'+NotificationUtil.checkPermission());
 						});
 						checkServer();
 			 	   } ,
@@ -1696,7 +1773,7 @@ var msgAdd = (function() {
 											hrefUrl = encodeURI(hrefUrl.replace(/\\/g, '/'));
 											hrefUrl = 'file:' + (hrefUrl.indexOf('/')==0 ? '' : '///') + hrefUrl;
 										}
-										return '&lt;<a target="_blank" href="'+hrefUrl+'">'+url+'</a>&gt;'
+										return '&lt;<a target="_blank" style="text-shadow: 1px 0px 1px white;" href="'+hrefUrl+'">'+url+'</a>&gt;'
 									}
 								]
 							];
@@ -1784,32 +1861,38 @@ var msgAdd = (function() {
 })();
 
 function showDesktopPopup(title, msg, showTime, focusTabID) {
+	// console.log('NotificationUtil.isSupported: ' + NotificationUtil.isSupported);
+	// console.log('NotificationUtil.checkPermission: ' + NotificationUtil.checkPermission());
 	if (
-		global.webkitNotifications &&
-		global.webkitNotifications.checkPermission() == 0
+		NotificationUtil.isSupported &&
+		NotificationUtil.checkPermission() == 'granted'
 	) {
 		var notifyMsg = (msg.length > 36) ? (msg.substring(0,35)+'...') : (msg);
-		var notify = global.webkitNotifications.createNotification(
-			'./extjs/resources/images/default/window/icon-info.gif',
+		var notify = NotificationUtil.createNotification(
 			title,
-			notifyMsg
-		);
-		notify.onclick = function() { 
-			notify.cancel();
-			if (focusTabID != null) {
-				var tabPanel = Ext.getCmp('tabPanel');
-				tabPanel.setActiveTab(focusTabID);
+			{
+				iconUrl : './extjs/resources/images/default/window/icon-info.gif',
+				body : notifyMsg
+			},
+			{
+				onclick : function() { 
+					this.close();
+					if (focusTabID != null) {
+						var tabPanel = Ext.getCmp('tabPanel');
+						tabPanel.setActiveTab(focusTabID);
+					}
+					alert(notifyMsg);
+				},
+				onshow : function() {
+					if (showTime > 0) {
+						var self = this;
+						setTimeout(function() { self.close(); }, 
+							showTime * 1000
+						);
+					}
+				}
 			}
-			alert(notifyMsg);
-		}
-		if (showTime > 0) {
-			notify.ondisplay = function() {
-				setTimeout(function() { notify.cancel(); }, 
-					showTime * 1000
-				);
-			};
-		}
-		notify.show();
+		);
 	}
 }
 
