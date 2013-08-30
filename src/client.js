@@ -489,8 +489,9 @@ Ext.onReady(function() {
 							var styleSheet = document.styleSheets[i];
 							// console.log(styleSheet.title);
 							if (styleSheet.title == 'wsChatCSS') {
-								for (var m=0,n=styleSheet.rules.length; m<n; m++) {
-									var rule = styleSheet.rules[m];
+								var rules = styleSheet.rules || styleSheet.cssRules;
+								for (var m=0,n=rules.length; m<n; m++) {
+									var rule = rules[m];
 									// console.log(rule.selectorText);
 									if (rule.selectorText == '.chatMessage') {
 										chatMessageCSS = rule;
@@ -501,6 +502,7 @@ Ext.onReady(function() {
 							}
 						}
 					} catch (e) { console.log(e); }
+					// console.log('chatMessageCSS: '+chatMessageCSS);
 					return {
 						render : function(slider) {
 							if (chatMessageCSS != null) {
