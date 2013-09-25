@@ -1262,13 +1262,15 @@ var checkServer = (function() {
 
 function join() {
 
+	var MAX_RECONNECTION_ATTEMPTS = 5;
+
 	var path = global.location.protocol+'//'+global.location.host+'/';
 	console.log('path: '+path);
 	socket = io.connect(path, {
 		'reconnect': true
-		// ,'reconnection delay' : 100
+		//,'reconnection delay' : 100
 		// ,'reconnection limit' : 60 * 1000
-		// ,'max reconnection attempts': 3
+		,'max reconnection attempts': MAX_RECONNECTION_ATTEMPTS
 		// ,'connect timeout' : 5 * 1000
 		// ,'try multiple transports' : false
 	});
@@ -1282,6 +1284,20 @@ function join() {
 	socket.on('reconnect', function() {
 		console.log('reconnect '+arguments.length);
 		socket.emit('handshake call');
+	});
+	socket.on('reconnecting', function(waitTime, count) {
+		console.log('reconnecting '+waitTime+' '+count);
+		if (count >= MAX_RECONNECTION_ATTEMPTS) {
+			socket.disconnect();
+			showDesktopPopup(
+				'通知 ('+Ext.util.Format.date(new Date(),'Y/m/d H:i:s')+')',
+				'接続が切れました。再接続するにはブラウザをリロードしてください。',
+				-1);
+			Ext.MessageBox.alert(
+				' ',
+				'接続が切れました。再接続するにはブラウザをリロードしてください。');
+			return false;
+		}
 	});
 	socket.on('disconnect', function(event) {
 		console.log('disconnect:'+JSON.stringify(arguments));
@@ -1862,41 +1878,54 @@ var msgAdd = (function() {
 	};
 })();
 
-function showDesktopPopup(title, msg, showTime, focusTabID) {
-	// console.log('NotificationUtil.isSupported: ' + NotificationUtil.isSupported);
-	// console.log('NotificationUtil.checkPermission: ' + NotificationUtil.checkPermission());
-	if (
-		NotificationUtil.isSupported &&
-		NotificationUtil.checkPermission() == 'granted'
-	) {
-		var notifyMsg = (msg.length > 36) ? (msg.substring(0,35)+'...') : (msg);
-		var notify = NotificationUtil.createNotification(
-			title,
-			{
-				iconUrl : './extjs/resources/images/default/window/icon-info.gif',
-				body : notifyMsg
-			},
-			{
-				onclick : function() { 
-					this.close();
-					if (focusTabID != null) {
-						var tabPanel = Ext.getCmp('tabPanel');
-						tabPanel.setActiveTab(focusTabID);
-					}
-					alert(notifyMsg);
+var showDesktopPopup = (function() {
+	var timerTable = {};
+	return function(title, msg, showTime, focusTabID) {
+		// console.log('NotificationUtil.isSupported: ' + NotificationUtil.isSupported);
+		// console.log('NotificationUtil.checkPermission: ' + NotificationUtil.checkPermission());
+		if (
+			NotificationUtil.isSupported &&
+			NotificationUtil.checkPermission() == 'granted'
+		) {
+			var notifyMsg = (msg.length > 36) ? (msg.substring(0,35)+'...') : (msg);
+			var notify = NotificationUtil.createNotification(
+				title,
+				{
+					iconUrl : './extjs/resources/images/default/window/icon-info.gif',
+					body : notifyMsg
 				},
-				onshow : function() {
-					if (showTime > 0) {
-						var self = this;
-						setTimeout(function() { self.close(); }, 
-							showTime * 1000
-						);
+				{
+					onclick : function() { 
+						for (var i in timerTable) {
+							// クリックされた時点で、他の通知の自動クローズを解除する
+							// console.log('timer:'+i);
+							clearTimeout(i);
+							delete timerTable[i];
+						}
+						this.close();
+						if (focusTabID != null) {
+							var tabPanel = Ext.getCmp('tabPanel');
+							tabPanel.setActiveTab(focusTabID);
+						}
+						alert(msg);
+					},
+					onshow : function() {
+						if (showTime > 0) {
+							var self = this;
+							var timer = setTimeout(function() { 
+									self.close(); 
+									delete timerTable[timer];
+								}, 
+								showTime * 1000
+							);
+							timerTable[timer] = true;
+						}
 					}
 				}
-			}
-		);
-	}
-}
+			);
+		}
+	};
+})();
 
 function addPrivateTab(user) {
 	var tabPanel = Ext.getCmp('tabPanel');
