@@ -446,7 +446,8 @@ io.sockets.on('connection', function (socket) {
 					'addr' : userData.addr,
 					'effect' : data.effect,
 					'color' : data.color,
-					'msg' : msg
+					'msg' : msg,
+					'imageData' : (noEncryptedData != null && noEncryptedData.imageData != null)
 				};
 
 				emit(socket, 'message push', sendMsg, noEncryptedData);

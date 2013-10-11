@@ -1764,9 +1764,10 @@ var msgAdd = (function() {
 						columnWidth　: .99,
 						border : false,
 						bodyStyle : {
-							height : '1em;',
-							wordBreak : 'break-all',
-							fontFamily : 'monospace'	//等幅フォント
+							height : '1em;'
+							, wordBreak : 'break-all'
+							, fontFamily : "'メイリオ',Meiryo,sans-serif"
+							// , fontFamily : 'monospace'	//等幅フォント
 						},
 						bodyCssClass : 'chatMessage',
 						html : (function() {
@@ -1847,7 +1848,7 @@ var msgAdd = (function() {
 							return str;
 						})()
 					});
-					if (noEncryptedData != null && noEncryptedData.imageData != null) {
+					if (data.imageData && noEncryptedData != null && noEncryptedData.imageData != null) {
 						var width = Math.min(noEncryptedData.imageWidth, 128);
 						items.push({
 							border : true,
@@ -1859,6 +1860,21 @@ var msgAdd = (function() {
 									panel.body.on('click', function() {
 										imageDef = noEncryptedData;
 										imageViewWin.show();
+									});
+								}
+							}
+						});
+					} else if (data.imageData) {
+						items.push({
+							border : true,
+							width : 48,
+							height : 48,
+							html : '<img style="cursor:pointer;margin:8px;"' +
+								' src="/extjs/resources/images/default/window/icon-error.gif" />',
+							listeners : {
+								render : function(panel) {
+									panel.body.on('click', function() {
+										alert('画像データがありません。');
 									});
 								}
 							}
