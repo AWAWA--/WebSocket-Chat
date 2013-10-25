@@ -652,6 +652,7 @@ Ext.onReady(function() {
 				items : [
 				]
 			}, {
+				id : 'MainMsgContainer',
 				region:'north',
 				border : false,
 				//autoHeight : true,
@@ -677,6 +678,9 @@ Ext.onReady(function() {
 	 						},
 	 						listeners : {
 	 							render : function(textField) {
+	 								Ext.getCmp('MainMsgContainer').setHeight(
+	 									Math.ceil(Ext.util.TextMetrics.measure('MainMsg','あ').height * 2.5));
+
 	 								var dom = textField.getEl().dom;
 									var reader = new FileReader();
 									var img = document.getElementById('dummyImage');
@@ -1971,7 +1975,9 @@ function addPrivateTab(user) {
 						items : [
 						]
 					}, {
+						id : 'PrivateMsgContainer_' + escapedUserID,
 						region:'north',
+						border : false,
 						//autoHeight : true,
 						layout : 'border',
 						bodyStyle : {
@@ -1979,30 +1985,30 @@ function addPrivateTab(user) {
 						},
 						padding : 3,
 						items : 
-						[{
-							region : 'center',
-							layout : 'fit',
-							items : [
-								new Ext.form.TextArea({
-									id : 'PrivateMsg_' + escapedUserID,
-									enableKeyEvents : true,
-			 						grow : true,
-			 						preventScrollbars : true,
-			 						style : {
-										fontSize : '1.2em'
-			 						},
-									listeners : {
-										keydown : function(textField, event) {
-											if (event.getKey() == 13) {
-												Ext.getCmp('PrivateSend_' + escapedUserID).fireEvent('click');
-												event.stopEvent();
-												return false;
-											}
-										}
+						[
+						new Ext.form.TextArea({
+							id : 'PrivateMsg_' + escapedUserID,
+	 						region : 'center',
+	 						enableKeyEvents : true,
+	 						// grow : true,
+	 						// preventScrollbars : true,
+	 						style : {
+								fontSize : '1.2em'
+	 						},
+							listeners : {
+	 							render : function(textField) {
+	 								Ext.getCmp('PrivateMsgContainer_' + escapedUserID).setHeight(
+	 									Math.ceil(Ext.util.TextMetrics.measure('PrivateMsg_' + escapedUserID,'あ').height * 2.5));
+	 							},
+								keydown : function(textField, event) {
+									if (event.getKey() == 13) {
+										Ext.getCmp('PrivateSend_' + escapedUserID).fireEvent('click');
+										event.stopEvent();
+										return false;
 									}
-								})
-							]
-						},
+								}
+							}
+						}),
 						new Ext.Button({
 							id : 'PrivateSend_' + escapedUserID,
 							region : 'east',
