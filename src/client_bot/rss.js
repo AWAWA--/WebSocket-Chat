@@ -62,11 +62,6 @@ var RSS_ITEMS = [
 			return maxLevel >= 3;
 		}
 		// , checkInterval : 1 * 60 * 1000
-	},
-	{
-		title:'地震速報@eew_jp'
-		, url:'http://www.twitter-rss.com/user_timeline.php?screen_name=eew_jp'
-		// , checkInterval : 1 * 60 * 1000
 	}
 ];
 
@@ -101,6 +96,11 @@ RSS_ITEMS.forEach(function(RSS_ITEM, rssIndex) {
 		http.get({host: host,　port: port,　path: path,　method: 'GET'}, function(res) {
 			// util.log(rssURL + ' : ' + res.statusCode);
 			// util.log('HEADERS: ' + JSON.stringify(res.headers));
+			if (res.statusCode != 200) {
+				util.log('GET ERROR: '+rssTitle+' statusCode='+res.statusCode);
+				setTimeout(getRss, rssCheckInterval);
+				return;
+			}
 			res.setEncoding('utf8');
 			var data = '';
 			res.on('data', function (chunk) {
