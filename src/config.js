@@ -31,4 +31,6 @@ var APP_CONFIG = {
 	/** BASIC認証を行う際のユーザID/パスワード設定ファイル */
 	, BASIC_AUTH_FILE: '../basicAuth.json'
 
+	/** デスクトップ通知の通知音として使用するファイル */
+	, NOTIFICATION_SOUND_FILE : 'notification.mp3'
 };

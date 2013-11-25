@@ -176,9 +176,18 @@ Ext.onReady(function() {
 		'notification_privateReplyMsgTime' : -1,
 		'notification_userAddDel' : true,
 		'notification_userAddDelTime' : 3.5,
+		'notification_sound' : false,
 		'messagePanel_fontSize' : 100
 	});
 	console.log('config : ' + JSON.stringify(config));
+
+	//通知用音声ファイルのロード
+	var audioElement = document.createElement('audio');
+	audioElement.id = 'notificationAudio';
+	audioElement.src = APP_CONFIG.NOTIFICATION_SOUND_FILE;
+	audioElement.preload = 'auto';
+	audioElement.style.visibility = 'hidden';
+	document.body.appendChild(audioElement);
 	
 	var configDialog = new Ext.Window({
 		id : 'configDialog',
@@ -193,6 +202,7 @@ Ext.onReady(function() {
 		modal : true,
 		resizable : true,
 		title : '設定',
+		layout : 'border',
 		listeners : {
 			show : function(dialog) {
 				configTmp = Ext.apply({}, config);
@@ -208,6 +218,8 @@ Ext.onReady(function() {
 				Ext.getCmp('notification_userAddDel_Field').setValue(config.notification_userAddDel);
 				Ext.getCmp('notification_userAddDelTime_Field').setDisabled(!config.notification_userAddDel);
 				Ext.getCmp('notification_userAddDelTime_Field').setValue(config.notification_userAddDelTime);
+
+				Ext.getCmp('notification_sound_Field').setValue(config.notification_sound);
 			}
 		},
 		fbar : [{
@@ -231,24 +243,22 @@ Ext.onReady(function() {
 			new Ext.TabPanel({
 				activeTab: 0,
 				enableTabScroll : true,
+				region : 'center',
 				defaults : {
 					autoScroll : true,
 					padding : 5
 				},
 				items: [{
 					title: 'デスクトップ通知',
-					layout : 'fit',
-					height : 350,
+					layout : 'border',
+					autoScroll : true,
 					items : [{
 						border : false,
-						layout : 'vbox',
 						align : 'left',
+						region : 'center',
+						autoScroll : true,
 						padding: 10,
 						items : [{
-							xtype: 'label',
-							margins: {top:3, right:0, bottom:15, left:0},
-							text: '※デスクトップ通知はGoogleChromeのみ使用できます'
-						},{
 							xtype: 'fieldset',
 							title: 'パブリックメッセージ着信時',
 							width: 400,
@@ -394,6 +404,19 @@ Ext.onReady(function() {
 										}
 									};
 								})()
+							}]
+						}, {
+							xtype: 'fieldset',
+							title: '通知音',
+							width: 400,
+							items : [{
+								id : 'notification_sound_Field',
+								xtype: 'checkbox',
+								fieldLabel: '有効',
+								checked : false,
+								handler : function(ckeckBox, checked) {
+									configTmp.notification_sound = checked;
+								}
 							}]
 						}]
 					}]
@@ -1943,6 +1966,9 @@ var showDesktopPopup = (function() {
 					}
 				}
 			);
+			if (config.notification_sound === true) {
+				document.getElementById('notificationAudio').play();
+			}
 		}
 	};
 })();
