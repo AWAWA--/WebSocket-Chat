@@ -8,6 +8,9 @@
 		"isReply": {
 			"type": "boolean"
 		},
+		"useReadNotification": {
+			"type": [ "boolean", "null" ]
+		},
 		"effect": {
 			"type": "integer",
 			"minimum": 0,

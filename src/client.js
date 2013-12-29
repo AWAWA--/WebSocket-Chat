@@ -675,24 +675,26 @@ Ext.onReady(function() {
 				items : [
 				]
 			}, {
-				id : 'MainMsgContainer',
 				region:'north',
 				border : false,
 				//autoHeight : true,
-				layout : 'border',
-				bodyStyle : {
-					height : '1.5em'
-				},
-				padding : 3,
-				items : 
-				[{
-					region : 'center',
-					layout : 'border',
+				layout : 'column',
+				items : [{
+					id : 'MainMsgContainer',
 					border : false,
+					columnWidth　: 1.0,
+					layout : 'hbox',
+					layoutConfig : {
+						align : 'stretch'
+					},
+					bodyStyle : {
+						height : '1.5em'
+					},
+					padding : 3,
 					items : [
 	 					new Ext.form.TextArea({
 	 						id : 'MainMsg',
-	 						region : 'center',
+	 						flex : 1.0,
 	 						enableKeyEvents : true,
 	 						// grow : true,
 	 						// preventScrollbars : true,
@@ -702,7 +704,7 @@ Ext.onReady(function() {
 	 						listeners : {
 	 							render : function(textField) {
 	 								Ext.getCmp('MainMsgContainer').setHeight(
-	 									Math.ceil(Ext.util.TextMetrics.measure('MainMsg','あ').height * 2.5));
+	 									Math.ceil(Ext.util.TextMetrics.measure('MainMsg','あ').height * 2.5) + 6);
 
 	 								var dom = textField.getEl().dom;
 									var reader = new FileReader();
@@ -791,7 +793,6 @@ Ext.onReady(function() {
 						}),
 						{
 							id : 'MainImgIcon',
-							region : 'east',
 							// autoWidth : true,
 							xtype : 'button',
 							disabled : true,
@@ -870,150 +871,156 @@ Ext.onReady(function() {
 									};
 								})()
 							}
-						}
-					]
-				},
-				new Ext.Button({
-					id : 'sendButton',
-					region : 'east',
-					autoWidth : true,
-					style : {
-						width : '8em !important'
-					},
-					text : '　送信　',
-					listeners : {
-						click : (function() {
-							var _sendMessage = function(effect) {
-								var text = Ext.getCmp('MainMsg');
-								var msg = text.getValue();
-								if (msg != null && msg.length > 0) {
-									sendMessage({
-											msgTarget : null,
-											isReply : false,
-											effect : effect,
-											msg : msg
-										}, 
-										(Ext.getCmp('MainImgIcon').disabled ? null : (function() {
-											var canvas = document.getElementById('MainImage');
-											var imageWidth = canvas.width;
-											var imageHeight = canvas.height;
-											var imageData = canvas.toDataURL('image/png');
-											console.log('imageData width='+imageWidth+' height='+imageHeight+' length='+imageData.length);
-											return {
-												imageWidth : imageWidth,
-												imageHeight : imageHeight,
-												imageData : imageData
-											};
-										})())
-									);
-									Ext.getCmp('MainImgIcon').disable();
-									setTimeout(function(){ text.reset(); }, 0);
-								}
-								text.focus();
-							};
-							var clickHandler = function() {
-								var form = Ext.getCmp('msgEffectPanel').getForm();
-								var i = 0;
-								var checkBox;
-								var effect = 0;
-								while ((checkBox = form.findField('msgEffect_'+i)) != null) {
-									// console.log('checkbox'+i+' : '+ checkBox.getValue());
-									if (checkBox.getValue() == true) {
-										effect = (effect | (1 << i));
-									}
-									i++;
-								}
-								// console.log(effect);
-								_sendMessage(effect);
-								win.hide();
-							};
-							var win = new Ext.Window({
-								//autoWidth : true,
-								width : 400,
-								//autoHeight : true,
-								height : 250,
-								autoScroll : true,
-								buttonAlign : 'center',
-								closable : false,
-								closeAction : 'hide',
-								initHidden : true,
-								layout : 'fit',
-								hideMode : 'visibility',
-								modal : true,
-								resizable : true,
-								title : 'エフェクト選択',
-								items : [new Ext.form.FormPanel({
-									id : 'msgEffectPanel',
-									bodyStyle: {
-										padding : '5px',
-									},
-									defaultType: 'checkbox',
-									keys : [{
-										key: [49,50,51,52,53,54,55,56,57],
-										fn: function(key, event){
-											var form = Ext.getCmp('msgEffectPanel').getForm();
-											var checkBox = form.findField('msgEffect_'+(key - 49));
-											if (checkBox != null) {
-												checkBox.setValue(!checkBox.getValue());
-											}
+						},
+						new Ext.Button({
+							id : 'sendButton',
+							autoWidth : true,
+							style : {
+								width : '8em !important'
+							},
+							text : '　送信　',
+							listeners : {
+								click : (function() {
+									var _sendMessage = function(effect) {
+										var text = Ext.getCmp('MainMsg');
+										var msg = text.getValue();
+										if (msg != null && msg.length > 0) {
+											sendMessage({
+													msgTarget : null,
+													isReply : false,
+													effect : effect,
+													msg : msg
+												}, 
+												(Ext.getCmp('MainImgIcon').disabled ? null : (function() {
+													var canvas = document.getElementById('MainImage');
+													var imageWidth = canvas.width;
+													var imageHeight = canvas.height;
+													var imageData = canvas.toDataURL('image/png');
+													console.log('imageData width='+imageWidth+' height='+imageHeight+' length='+imageData.length);
+													return {
+														imageWidth : imageWidth,
+														imageHeight : imageHeight,
+														imageData : imageData
+													};
+												})())
+											);
+											Ext.getCmp('MainImgIcon').disable();
+											setTimeout(function(){ text.reset(); }, 0);
 										}
-									},{
-										key: [13],
-										fn: clickHandler
-									}],
-									labelWidth : 300,
-									items : [{
-										name: 'msgEffect_0',
-										fieldLabel: '[1]文字を小さく(ShiftKeyと同じ)'
-									}, {
-										name: 'msgEffect_1',
-										fieldLabel: '[2]文字を大きく(AltKeyと同じ)'
-									}, {
-										name: 'msgEffect_2',
-										fieldLabel: '[3]投降後、数秒で自動的に削除'
-									}, {
-										name: 'msgEffect_3',
-										fieldLabel: '[4]強制的にデスクトップ通知を表示'
-									}]
-								})],
-								listeners : {
-									beforeshow : function(win) {
+										text.focus();
+									};
+									var clickHandler = function() {
 										var form = Ext.getCmp('msgEffectPanel').getForm();
 										var i = 0;
 										var checkBox;
+										var effect = 0;
 										while ((checkBox = form.findField('msgEffect_'+i)) != null) {
-											checkBox.setValue(false);
+											// console.log('checkbox'+i+' : '+ checkBox.getValue());
+											if (checkBox.getValue() == true) {
+												effect = (effect | (1 << i));
+											}
 											i++;
 										}
-									},
-									show : function(win) {
-										setTimeout(function() {
-											var form = Ext.getCmp('msgEffectPanel').getForm();
-											form.findField('msgEffect_0').focus();
-										}, 200);
-									}
-								},
-								fbar : [
-								{
-									text : '送信',
-									listeners : {
-										click : clickHandler
-									}
-								}
-								]
-							});
-							return function(button, event) {
-								// console.log(event);
-								if (event.ctrlKey) {
-									win.show();
-								} else {
-									_sendMessage(event.shiftKey ? (1<<0) : event.altKey ? (1<<1) : 0);
-								}
-							};
-						})()
-					}
-				})
-				]
+										// console.log(effect);
+										_sendMessage(effect);
+										win.hide();
+									};
+									var win = new Ext.Window({
+										//autoWidth : true,
+										width : 400,
+										//autoHeight : true,
+										height : 250,
+										autoScroll : true,
+										buttonAlign : 'center',
+										closable : false,
+										closeAction : 'hide',
+										initHidden : true,
+										layout : 'fit',
+										hideMode : 'visibility',
+										modal : true,
+										resizable : true,
+										title : 'エフェクト選択',
+										items : [new Ext.form.FormPanel({
+											id : 'msgEffectPanel',
+											bodyStyle: {
+												padding : '5px',
+											},
+											defaultType: 'checkbox',
+											keys : [{
+												key: [49,50,51,52,53,54,55,56,57],
+												fn: function(key, event){
+													var form = Ext.getCmp('msgEffectPanel').getForm();
+													var checkBox = form.findField('msgEffect_'+(key - 49));
+													if (checkBox != null) {
+														checkBox.setValue(!checkBox.getValue());
+													}
+												}
+											},{
+												key: [13],
+												fn: clickHandler
+											}],
+											labelWidth : 300,
+											items : [{
+												name: 'msgEffect_0',
+												fieldLabel: '[1]文字を小さく(ShiftKeyと同じ)'
+											}, {
+												name: 'msgEffect_1',
+												fieldLabel: '[2]文字を大きく(AltKeyと同じ)'
+											}, {
+												name: 'msgEffect_2',
+												fieldLabel: '[3]投降後、数秒で自動的に削除'
+											}, {
+												name: 'msgEffect_3',
+												fieldLabel: '[4]強制的にデスクトップ通知を表示'
+											}]
+										})],
+										listeners : {
+											beforeshow : function(win) {
+												var form = Ext.getCmp('msgEffectPanel').getForm();
+												var i = 0;
+												var checkBox;
+												while ((checkBox = form.findField('msgEffect_'+i)) != null) {
+													checkBox.setValue(false);
+													i++;
+												}
+											},
+											show : function(win) {
+												setTimeout(function() {
+													var form = Ext.getCmp('msgEffectPanel').getForm();
+													form.findField('msgEffect_0').focus();
+												}, 200);
+											}
+										},
+										fbar : [
+										{
+											text : '送信',
+											listeners : {
+												click : clickHandler
+											},
+										},
+										{
+											text : 'キャンセル',
+											listeners : {
+												click : function() {
+													win.hide();
+												}
+											}
+										}
+										]
+									});
+									return function(button, event) {
+										// console.log(event);
+										if (event.ctrlKey) {
+											win.show();
+										} else {
+											_sendMessage(event.shiftKey ? (1<<0) : event.altKey ? (1<<1) : 0);
+										}
+									};
+								})()
+							}
+						})
+					]
+				}]
 			}]
 		},{
 			id : 'CanvasTab',
@@ -1295,7 +1302,7 @@ function join() {
 	console.log('path: '+path);
 	socket = io.connect(path, {
 		'reconnect': true
-		//,'reconnection delay' : 100
+		,'reconnection delay' : 3 * 1000
 		// ,'reconnection limit' : 60 * 1000
 		,'max reconnection attempts': MAX_RECONNECTION_ATTEMPTS
 		// ,'connect timeout' : 5 * 1000
@@ -1511,6 +1518,17 @@ function join() {
 					}
 				});
 			})(removeList[i]);
+		}
+	});
+	socket.on('read notification', function(str) {
+		var data = common.decryptByAES(str, commonKey);
+		if (config.notification_privateMsg) {
+			showDesktopPopup(
+				data.name + ' がメッセージを開封しました',
+				'送信時刻：'+Ext.util.Format.date(new Date(data.time),'Y/m/d H:i:s')+'\n'+
+				'開封時刻：'+Ext.util.Format.date(new Date(data.readTime),'Y/m/d H:i:s'),
+				config.notification_privateMsgTime
+			);
 		}
 	});
 	socket.on('figure push', function(str) {
@@ -1784,11 +1802,38 @@ var msgAdd = (function() {
 				layout : 'column',
 				items : (function() {
 					var items = [];
+					var isShowOpenButton = (data.isPrivate && data.msgTarget == myID && data.useReadNotification);
+					if (isShowOpenButton) {
+						items.push({
+							xtype : 'button',
+							text : '開封する',
+							columnWidth: 1,
+							style : {
+								height : '2.5em'
+							},
+							listeners : {
+								render : function(button) {
+									button.getEl().dom.getElementsByTagName('button')[0].style.letterSpacing = '0.8em';
+								},
+								click : function(button) {
+									button.hide();
+									button.nextSibling().show();
+									socket.emit('read notification', common.encryptByAES({
+										from : myID,
+										to : data.id,
+										time : data.time,
+										name : data.name
+									}, commonKey));
+								}
+							}
+						});
+					}
 					items.push({
 						// height : 50,
 						autoHeight : true,
 						// autoWidth : true,
 						columnWidth　: .99,
+						hidden : (isShowOpenButton),
 						border : false,
 						bodyStyle : {
 							height : '1em;'
@@ -1950,7 +1995,7 @@ var showDesktopPopup = (function() {
 							var tabPanel = Ext.getCmp('tabPanel');
 							tabPanel.setActiveTab(focusTabID);
 						}
-						alert(msg);
+						alert(title + '：\n' + msg);
 					},
 					onshow : function() {
 						if (showTime > 0) {
@@ -2001,64 +2046,88 @@ function addPrivateTab(user) {
 						items : [
 						]
 					}, {
-						id : 'PrivateMsgContainer_' + escapedUserID,
 						region:'north',
 						border : false,
-						//autoHeight : true,
-						layout : 'border',
-						bodyStyle : {
-							height : '1.5em'
-						},
-						padding : 3,
-						items : 
-						[
-						new Ext.form.TextArea({
-							id : 'PrivateMsg_' + escapedUserID,
-	 						region : 'center',
-	 						enableKeyEvents : true,
-	 						// grow : true,
-	 						// preventScrollbars : true,
-	 						style : {
-								fontSize : '1.2em'
-	 						},
-							listeners : {
-	 							render : function(textField) {
-	 								Ext.getCmp('PrivateMsgContainer_' + escapedUserID).setHeight(
-	 									Math.ceil(Ext.util.TextMetrics.measure('PrivateMsg_' + escapedUserID,'あ').height * 2.5));
-	 							},
-								keydown : function(textField, event) {
-									if (event.getKey() == 13) {
-										Ext.getCmp('PrivateSend_' + escapedUserID).fireEvent('click');
-										event.stopEvent();
-										return false;
-									}
-								}
-							}
-						}),
-						new Ext.Button({
-							id : 'PrivateSend_' + escapedUserID,
-							region : 'east',
-							//autoWidth : true,
-							style : {
-								width : '8em !important'
+						autoHeight : true,
+						layout : 'column',
+						// height : 50,
+						items : [
+						{
+							xtype : 'toolbar',
+							columnWidth　: 1.0,
+							items : [
+							'->',
+							{
+								id : 'PrivateNotify_' + escapedUserID,
+								xtype : 'checkbox',
+								boxLabel : '開封通知',
+								checked : true
 							},
-							text : '　送信　',
-							listeners : {
-								click : function() {
-									var text = Ext.getCmp('PrivateMsg_' + escapedUserID);
-									var msg = text.getValue();
-									if (msg != null && msg.length > 0) {
-										sendMessage({
-											msgTarget : user.id,
-											isReply : false,
-											msg : msg
-										});
-										setTimeout(function(){ text.reset(); }, 0);
+							' '
+							]
+						},
+						{
+							id : 'PrivateMsgContainer_' + escapedUserID,
+							columnWidth　: 1.0,
+							layout : 'hbox',
+							layoutConfig : {
+								align : 'stretch'
+							},
+							bodyStyle : {
+								height : '1.5em'
+							},
+							padding : 3,
+							items : 
+							[
+								new Ext.form.TextArea({
+									id : 'PrivateMsg_' + escapedUserID,
+			 						flex : 1,
+			 						enableKeyEvents : true,
+			 						// grow : true,
+			 						// preventScrollbars : true,
+			 						style : {
+										fontSize : '1.2em'
+			 						},
+									listeners : {
+			 							render : function(textField) {
+			 								Ext.getCmp('PrivateMsgContainer_' + escapedUserID).setHeight(
+			 									Math.ceil(Ext.util.TextMetrics.measure('PrivateMsg_' + escapedUserID,'あ').height * 2.5) + 6);
+			 							},
+										keydown : function(textField, event) {
+											if (event.getKey() == 13) {
+												Ext.getCmp('PrivateSend_' + escapedUserID).fireEvent('click');
+												event.stopEvent();
+												return false;
+											}
+										}
 									}
-									text.focus();
-								}
-							}
-						})
+								}),
+								new Ext.Button({
+									id : 'PrivateSend_' + escapedUserID,
+									//autoWidth : true,
+									style : {
+										width : '8em !important'
+									},
+									text : '　送信　',
+									listeners : {
+										click : function() {
+											var text = Ext.getCmp('PrivateMsg_' + escapedUserID);
+											var msg = text.getValue();
+											if (msg != null && msg.length > 0) {
+												sendMessage({
+													msgTarget : user.id,
+													isReply : false,
+													useReadNotification : Ext.getCmp('PrivateNotify_' + escapedUserID).getValue(),
+													msg : msg
+												});
+												setTimeout(function(){ text.reset(); }, 0);
+											}
+											text.focus();
+										}
+									}
+								})
+							]
+						}
 						]
 					}
 				]

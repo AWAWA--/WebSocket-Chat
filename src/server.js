@@ -439,6 +439,7 @@ io.sockets.on('connection', function (socket) {
 				var sendMsg = {
 					'msgTarget' : msgTarget,
 					'isPrivate' : (msgTarget != null && '' != msgTarget),
+					'useReadNotification' : (data.useReadNotification != null ? data.useReadNotification : false),
 					'time' : new Date().getTime(),
 					'id' : userData.id,
 					'name' : userData.name,
@@ -512,6 +513,15 @@ io.sockets.on('connection', function (socket) {
 				emit(socket, 'message delete', sendData);
 				broadcastEmit(socket, 'message delete', sendData);
 				msgQueue.delete(sendData);
+			});
+
+			socket.on('read notification', function(str) {
+				var data = common.decryptByAES(str, commonKey);
+				if (!jsonValidate(socket, 'read_notification', data)) { return; }
+				var targetSocket = io.sockets.socket(data.to);
+				if (targetSocket == null) { return; }
+				data.readTime = new Date().getTime();
+				emit(targetSocket, 'read notification', data);
 			});
 		});
 	});

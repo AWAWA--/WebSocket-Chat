@@ -1,0 +1,22 @@
+{
+	"type": "object",
+	"properties": {
+		"from": {
+			"type": "string",
+			"maxLength": 256
+		},
+		"to": {
+			"type": "string",
+			"maxLength": 256
+		},
+		"name": {
+			"type": "string",
+			"maxLength": 256
+		},
+		"time": {
+			"type": "integer"
+		}
+	},
+	"required": [ "from", "to", "name", "time" ],
+	"additionalProperties": false
+}
