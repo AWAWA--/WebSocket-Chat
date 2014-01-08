@@ -690,7 +690,6 @@ Ext.onReady(function() {
 					bodyStyle : {
 						height : '1.5em'
 					},
-					padding : 3,
 					items : [
 	 					new Ext.form.TextArea({
 	 						id : 'MainMsg',
@@ -704,7 +703,7 @@ Ext.onReady(function() {
 	 						listeners : {
 	 							render : function(textField) {
 	 								Ext.getCmp('MainMsgContainer').setHeight(
-	 									Math.ceil(Ext.util.TextMetrics.measure('MainMsg','あ').height * 2.5) + 6);
+	 									Math.ceil(Ext.util.TextMetrics.measure('MainMsg','あ').height * 2.5));
 
 	 								var dom = textField.getEl().dom;
 									var reader = new FileReader();
@@ -2076,7 +2075,6 @@ function addPrivateTab(user) {
 							bodyStyle : {
 								height : '1.5em'
 							},
-							padding : 3,
 							items : 
 							[
 								new Ext.form.TextArea({
@@ -2091,7 +2089,7 @@ function addPrivateTab(user) {
 									listeners : {
 			 							render : function(textField) {
 			 								Ext.getCmp('PrivateMsgContainer_' + escapedUserID).setHeight(
-			 									Math.ceil(Ext.util.TextMetrics.measure('PrivateMsg_' + escapedUserID,'あ').height * 2.5) + 6);
+			 									Math.ceil(Ext.util.TextMetrics.measure('PrivateMsg_' + escapedUserID,'あ').height * 2.5));
 			 							},
 										keydown : function(textField, event) {
 											if (event.getKey() == 13) {
