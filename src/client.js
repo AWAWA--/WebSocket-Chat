@@ -1801,7 +1801,11 @@ var msgAdd = (function() {
 				layout : 'column',
 				items : (function() {
 					var items = [];
-					var isShowOpenButton = (data.isPrivate && data.msgTarget == myID && data.useReadNotification);
+					var isShowOpenButton = (data.isPrivate &&
+							data.msgTarget == myID && 
+							data.useReadNotification &&
+							targetPanel.getId() != 'PrivateMsgLogView'
+							);
 					if (isShowOpenButton) {
 						items.push({
 							xtype : 'button',
@@ -1821,7 +1825,7 @@ var msgAdd = (function() {
 										from : myID,
 										to : data.id,
 										time : data.time,
-										name : data.name
+										name : myName
 									}, commonKey));
 								}
 							}
