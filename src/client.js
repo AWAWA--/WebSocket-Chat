@@ -1579,7 +1579,7 @@ function handleMessage(data, noEncryptedData, callbackFn) {
 		) {
 			showDesktopPopup(
 				data.name + ' からの' + (data.isPrivate ? 'プライベート' : '') + 'メッセージ',
-				data.msg,
+				data.useReadNotification ? '（開封確認）' : data.msg,
 				forcePopup ? -1 : 
 					(data.isPrivate ?
 						config.notification_privateMsgTime : 
@@ -1986,7 +1986,7 @@ var showDesktopPopup = (function() {
 					body : notifyMsg
 				},
 				{
-					onclick : function() { 
+					onclick : function(event) {
 						for (var i in timerTable) {
 							// クリックされた時点で、他の通知の自動クローズを解除する
 							// console.log('timer:'+i);
@@ -1997,8 +1997,12 @@ var showDesktopPopup = (function() {
 						if (focusTabID != null) {
 							var tabPanel = Ext.getCmp('tabPanel');
 							tabPanel.setActiveTab(focusTabID);
+							setTimeout(function() {
+								alert(title + '：\n' + msg);
+							}, 0);
+						} else {
+							alert(title + '：\n' + msg);
 						}
-						alert(title + '：\n' + msg);
 					},
 					onshow : function() {
 						if (showTime > 0) {
