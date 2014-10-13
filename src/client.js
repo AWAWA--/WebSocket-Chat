@@ -182,6 +182,415 @@ var NotificationUtil = {
 
 };
 
+var MessagePanel = Ext.extend(Ext.Panel, {
+	constructor: function(user, config) {
+
+		var isPrivate = (user != null);
+		var escapedUserID = isPrivate ? Ext.util.Format.htmlEncode(user.id) : '';
+		var escapedUserName = isPrivate ? Ext.util.Format.htmlEncode(user.name) : '';
+		var escapedHost = isPrivate ? Ext.util.Format.htmlEncode(user.host) : '';
+		var escapedAddr = isPrivate ? Ext.util.Format.htmlEncode(user.addr) : '';
+
+		var tabName = isPrivate ? ('PrivateTab_' + escapedUserID) : 'MainTab';
+		var viewName = isPrivate ? ('PrivateView_' + escapedUserID) : 'MainView';
+		var containerName = isPrivate ? ('PrivateMsgContainer_' + escapedUserID) : 'MainMsgContainer';
+		var msgName = isPrivate ? ('PrivateMsg_' + escapedUserID) : 'MainMsg';
+		var dummyImageName = isPrivate ? ('dummyImage_' + escapedUserID) : 'dummyImage';
+		var mainImageName = isPrivate ? ('MainImage_' + escapedUserID) : 'MainImage';
+		var imageIconName = isPrivate ? ('MainImgIcon_' + escapedUserID) : 'MainImgIcon';
+		var sendButtonName = isPrivate ? ('PrivateMsgSendButton_' + escapedUserID) : 'MsgSendButton';
+		var msgEffectPanelName = isPrivate ? ('msgEffectPanel_' + escapedUserID) : 'msgEffectPanel';
+		var notifyCheckName = isPrivate ? ('PrivateNotify_' + escapedUserID) : null;
+
+		config = Ext.apply({
+			id : tabName,
+			title	: isPrivate ? ('w/ ' + escapedUserName) : '共有タイムライン',
+			closable : isPrivate ? true : false,
+			layout : 'fit',
+			items : [{
+				title : isPrivate ? (escapedUserName + ' : ' + escapedHost + '(' + escapedAddr + ')' + ' とのプライベート板') : null,
+				layout : 'border',
+				items : [{
+					id : viewName,
+					region:'center',
+					autoScroll : true,
+					bodyStyle : {
+						backgroundColor : 'transparent !important'
+						//backgroundColor : '#4E79B2 !important'
+					},
+					//layout : 'vbox',
+					items : [
+					]
+				}, {
+					region:'north',
+					border : false,
+					autoHeight : true,
+					layout : 'column',
+					items : [{
+						id : containerName,
+						border : false,
+						columnWidth　: 1.0,
+						layout : 'hbox',
+						layoutConfig : {
+							align : 'stretch'
+						},
+						bodyStyle : {
+							height : '1.5em'
+						},
+						items : [
+		 					new Ext.form.TextArea({
+		 						id : msgName,
+		 						flex : 1.0,
+		 						enableKeyEvents : true,
+		 						// grow : true,
+		 						// preventScrollbars : true,
+		 						style : {
+									fontSize : '1.2em'
+		 						},
+		 						listeners : {
+		 							render : function(textField) {
+
+		 								Ext.getCmp(containerName).setHeight(
+		 									Math.ceil(Ext.util.TextMetrics.measure(msgName, 'あ').height * 2.5));
+
+		 								var dom = textField.getEl().dom;
+										var reader = new FileReader();
+										var img = document.getElementById(dummyImageName);
+
+										img.onload = function() {
+											try {
+												// img.onload = Ext.emptyFn;
+												var imageWidth = img.width;
+												var imageHeight = img.height;
+												// console.log(imageWidth + ' : ' + imageHeight);
+												if (imageWidth == 1 && imageHeight == 1) { return; }
+												var scale = (function() {
+													var IMAGE_MAX_WIDTH = APP_CONFIG.IMAGE_MAX_WIDTH;
+													var IMAGE_MAX_HEIGHT = APP_CONFIG.IMAGE_MAX_HEIGHT;
+													if (imageWidth <= IMAGE_MAX_WIDTH && imageHeight <= IMAGE_MAX_HEIGHT) { return 1; }
+													return Math.min(IMAGE_MAX_WIDTH/imageWidth, IMAGE_MAX_HEIGHT/imageHeight);
+												})();
+												// console.log('scale = ' + scale);
+												var canvas = document.getElementById(mainImageName);
+												canvas.width = Math.ceil(img.width * scale);
+												canvas.height = Math.ceil(img.height * scale);
+												var ctx = canvas.getContext('2d');
+												// console.log(ctx);
+												ctx.save();
+												ctx.scale(scale, scale);
+												ctx.drawImage(img, 0, 0);
+												ctx.restore();
+												Ext.getCmp(imageIconName).enable();
+												img.src = Ext.BLANK_IMAGE_URL;
+											} catch(e) {
+												console.log(e);
+											}
+										};
+
+										reader.onerror = function(err) { console.log(err); };
+										reader.onload = function(event) {
+											// console.log(event);
+											img.src = event.target.result;
+										};
+
+										Ext.EventManager.on(dom, 'paste', function(event) {
+											try {
+			 									// console.log(event.clipboardData);
+			 									// console.log(event.clipboardData.items);
+												var dataItem = event.browserEvent.clipboardData.items[0];
+												// console.log(dataItem);
+												var file = dataItem.getAsFile();
+												// console.log(file);
+												var dataType = dataItem.type;
+												// console.log(dataType);
+												if (/^image\//.test(dataType)) {
+													reader.readAsDataURL(file);
+												}
+											} catch(e) {
+												console.log(e);
+											}
+		 								});
+
+										Ext.EventManager.on(dom, 'dragenter', function(event) {
+											textField.getEl().highlight();
+										});
+										Ext.EventManager.on(dom, 'drop', function(event) {
+											try {
+												var file = event.browserEvent.dataTransfer.files[0];
+												// console.log(file);
+												var dataType = file.type;
+												// console.log(dataType);
+												if (/^image\//.test(dataType)) {
+													reader.readAsDataURL(file);
+												}
+											} catch(e) {
+												console.log(e);
+											}
+										});
+		 							},
+		 							keydown : function(textField, event) {
+		 								if (event.getKey() == 13 && (event.ctrlKey || event.shiftKey || event.altKey)) {
+		 									var b = Ext.getCmp(sendButtonName);
+		 									b.fireEvent('click', b, event);
+		 									event.stopEvent();
+		 									return false;
+		 								}
+		 							}
+		 						}
+							}),
+							{
+								id : imageIconName,
+								// autoWidth : true,
+								xtype : 'button',
+								disabled : true,
+								text : '画像なし',
+								listeners: {
+									enable : function(self) {
+										self.setText('画像あり');
+									},
+									disable : function(self) {
+										self.setText('画像なし');
+									},
+									click : (function() {
+										var win = new Ext.Window({
+											//autoWidth : true,
+											width : 500,
+											//autoHeight : true,
+											height : 350,
+											buttonAlign : 'center',
+											closable : true,
+											closeAction : 'hide',
+											initHidden : true,
+											layout : 'fit',
+											hideMode : 'visibility',
+											modal : true,
+											resizable : true,
+											title : '添付画像',
+											items : [
+											{
+												autoScroll : true,
+												border : false,
+												html : '<img id="'+dummyImageName+'" style="position:absolute;visibility:hidden;" />' +
+													'<canvas id="'+mainImageName+'" style="border:1px solid silver;" />'
+											}
+											],
+											listeners : {
+												beforeshow : function(win) {
+													var canvas = document.getElementById(mainImageName);
+													var winWidth = Math.min(canvas.width+win.getFrameWidth()+Ext.getScrollBarWidth(), Math.floor(Ext.getBody().getWidth()*0.9));
+													winWidth = Math.max(winWidth, 250);
+													var winHeight = Math.min(canvas.height+win.getFrameHeight()+Ext.getScrollBarWidth(), Math.floor(Ext.getBody().getHeight()*0.8));
+													winHeight = Math.max(winHeight, 100);
+													// console.log(winWidth + ' : ' + winHeight);
+													win.setSize(winWidth, winHeight);
+													win.center();
+												},
+												render : function(win) {
+													win.body.on('click', function() {
+														win.hide();
+													});
+												}
+											},
+											fbar : [
+											{
+												text : '削除する',
+												listeners : {
+													click : function() {
+														Ext.getCmp(imageIconName).disable();
+														win.hide();
+													}
+												}
+											},
+											{
+												text : '閉じる',
+												listeners : {
+													click : function() {
+														win.hide();
+													}
+												}
+											}
+											]
+										});
+										win.show();
+										win.hide();
+										return function(self) {
+											win.show();
+										};
+									})()
+								}
+							},
+							new Ext.SplitButton((function() {
+								var _sendMessage = function(effect) {
+									var text = Ext.getCmp(msgName);
+									var msg = text.getValue();
+									if (msg != null && msg.length > 0) {
+										sendMessage({
+												msgTarget : isPrivate ? user.id : null,
+												isReply : false,
+												effect : effect,
+												useReadNotification : ((notifyCheckName != null) ? Ext.getCmp(notifyCheckName).checked : null),
+												msg : msg
+											}, 
+											(Ext.getCmp(imageIconName).disabled ? null : (function() {
+												var canvas = document.getElementById(mainImageName);
+												var imageWidth = canvas.width;
+												var imageHeight = canvas.height;
+												var imageData = canvas.toDataURL('image/png');
+												console.log('imageData width='+imageWidth+' height='+imageHeight+' length='+imageData.length);
+												return {
+													imageWidth : imageWidth,
+													imageHeight : imageHeight,
+													imageData : imageData
+												};
+											})())
+										);
+										Ext.getCmp(imageIconName).disable();
+										setTimeout(function(){ text.reset(); }, 0);
+									}
+									text.focus();
+								};
+								var clickHandler = function() {
+									var form = Ext.getCmp(msgEffectPanelName).getForm();
+									var i = 0;
+									var checkBox;
+									var effect = 0;
+									while ((checkBox = form.findField('msgEffect_'+i)) != null) {
+										// console.log('checkbox'+i+' : '+ checkBox.getValue());
+										if (checkBox.getValue() == true) {
+											effect = (effect | (1 << i));
+										}
+										i++;
+									}
+									// console.log(effect);
+									_sendMessage(effect);
+									win.hide();
+								};
+								var win = new Ext.Window({
+									//autoWidth : true,
+									width : 400,
+									//autoHeight : true,
+									height : 250,
+									autoScroll : true,
+									buttonAlign : 'center',
+									closable : false,
+									closeAction : 'hide',
+									initHidden : true,
+									layout : 'fit',
+									hideMode : 'visibility',
+									modal : true,
+									resizable : true,
+									title : 'エフェクト選択',
+									items : [new Ext.form.FormPanel({
+										id : msgEffectPanelName,
+										bodyStyle: {
+											padding : '5px',
+										},
+										defaultType: 'checkbox',
+										keys : [{
+											key: [49,50,51,52,53,54,55,56,57],
+											fn: function(key, event){
+												var form = Ext.getCmp(msgEffectPanelName).getForm();
+												var checkBox = form.findField('msgEffect_'+(key - 49));
+												if (checkBox != null) {
+													checkBox.setValue(!checkBox.getValue());
+												}
+											}
+										},{
+											key: [13],
+											fn: clickHandler
+										}],
+										labelWidth : 300,
+										items : [{
+											name: 'msgEffect_0',
+											fieldLabel: '[1]文字を小さく(ShiftKeyと同じ)'
+										}, {
+											name: 'msgEffect_1',
+											fieldLabel: '[2]文字を大きく(AltKeyと同じ)'
+										}, {
+											name: 'msgEffect_2',
+											fieldLabel: '[3]投降後、数秒で自動的に削除'
+										}, {
+											name: 'msgEffect_3',
+											fieldLabel: '[4]強制的にデスクトップ通知を表示'
+										}]
+									})],
+									listeners : {
+										beforeshow : function(win) {
+											var form = Ext.getCmp(msgEffectPanelName).getForm();
+											var i = 0;
+											var checkBox;
+											while ((checkBox = form.findField('msgEffect_'+i)) != null) {
+												checkBox.setValue(false);
+												i++;
+											}
+										},
+										show : function(win) {
+											setTimeout(function() {
+												var form = Ext.getCmp(msgEffectPanelName).getForm();
+												form.findField('msgEffect_0').focus();
+											}, 200);
+										}
+									},
+									fbar : [
+									{
+										text : '送信',
+										listeners : {
+											click : clickHandler
+										},
+									},
+									{
+										text : 'キャンセル',
+										listeners : {
+											click : function() {
+												win.hide();
+											}
+										}
+									}
+									]
+								});
+								return {
+									id : sendButtonName,
+									autoWidth : true,
+									style : {
+										width : '8em !important'
+									},
+									text : '　送信　',
+									menu: new Ext.menu.Menu({
+										items: (function() {
+											var returnVal = [{
+												text: '各種効果',
+												handler: function(){
+													win.show();
+												}
+											}];
+											if (isPrivate) {
+												returnVal.push(new Ext.menu.CheckItem({
+													id : notifyCheckName,
+													text: '開封通知',
+													checked : true
+												}));
+											}
+											return returnVal;
+										})()
+									}),
+									listeners : {
+										click : function(button, event) {
+											_sendMessage(event.shiftKey ? (1<<0) : event.altKey ? (1<<1) : 0);
+										}
+									}
+								};
+							})())
+						]
+					}]
+				}]
+			}]
+		}, config);
+		console.log(config);
+
+		MessagePanel.superclass.constructor.call(this, config);
+	}
+});
+
 Ext.onReady(function() {
 
 	//ファイルのドラッグ誤操作を防止
@@ -693,376 +1102,9 @@ Ext.onReady(function() {
 				}, 10);
 			}
 		},
-		items:[{
-			id : 'MainTab',
-			title	: '共有タイムライン',
-			layout : 'border',
-			closable : false,
-			items : 
-			[{
-				id : 'MainView',
-				region:'center',
-				autoScroll : true,
-				bodyStyle : {
-					backgroundColor : 'transparent !important'
-					//backgroundColor : '#4E79B2 !important'
-				},
-				//layout : 'vbox',
-				items : [
-				]
-			}, {
-				region:'north',
-				border : false,
-				//autoHeight : true,
-				layout : 'column',
-				items : [{
-					id : 'MainMsgContainer',
-					border : false,
-					columnWidth　: 1.0,
-					layout : 'hbox',
-					layoutConfig : {
-						align : 'stretch'
-					},
-					bodyStyle : {
-						height : '1.5em'
-					},
-					items : [
-	 					new Ext.form.TextArea({
-	 						id : 'MainMsg',
-	 						flex : 1.0,
-	 						enableKeyEvents : true,
-	 						// grow : true,
-	 						// preventScrollbars : true,
-	 						style : {
-								fontSize : '1.2em'
-	 						},
-	 						listeners : {
-	 							render : function(textField) {
-	 								Ext.getCmp('MainMsgContainer').setHeight(
-	 									Math.ceil(Ext.util.TextMetrics.measure('MainMsg','あ').height * 2.5));
-
-	 								var dom = textField.getEl().dom;
-									var reader = new FileReader();
-									var img = document.getElementById('dummyImage');
-
-									img.onload = function() {
-										try {
-											// img.onload = Ext.emptyFn;
-											var imageWidth = img.width;
-											var imageHeight = img.height;
-											// console.log(imageWidth + ' : ' + imageHeight);
-											if (imageWidth == 1 && imageHeight == 1) { return; }
-											var scale = (function() {
-												var IMAGE_MAX_WIDTH = APP_CONFIG.IMAGE_MAX_WIDTH;
-												var IMAGE_MAX_HEIGHT = APP_CONFIG.IMAGE_MAX_HEIGHT;
-												if (imageWidth <= IMAGE_MAX_WIDTH && imageHeight <= IMAGE_MAX_HEIGHT) { return 1; }
-												return Math.min(IMAGE_MAX_WIDTH/imageWidth, IMAGE_MAX_HEIGHT/imageHeight);
-											})();
-											// console.log('scale = ' + scale);
-											var canvas = document.getElementById('MainImage');
-											canvas.width = Math.ceil(img.width * scale);
-											canvas.height = Math.ceil(img.height * scale);
-											var ctx = canvas.getContext('2d');
-											// console.log(ctx);
-											ctx.save();
-											ctx.scale(scale, scale);
-											ctx.drawImage(img, 0, 0);
-											ctx.restore();
-											Ext.getCmp('MainImgIcon').enable();
-											img.src = Ext.BLANK_IMAGE_URL;
-										} catch(e) {
-											console.log(e);
-										}
-									};
-
-									reader.onerror = function(err) { console.log(err); };
-									reader.onload = function(event) {
-										// console.log(event);
-										img.src = event.target.result;
-									};
-
-									Ext.EventManager.on(dom, 'paste', function(event) {
-										try {
-		 									// console.log(event.clipboardData);
-		 									// console.log(event.clipboardData.items);
-											var dataItem = event.browserEvent.clipboardData.items[0];
-											// console.log(dataItem);
-											var file = dataItem.getAsFile();
-											// console.log(file);
-											var dataType = dataItem.type;
-											// console.log(dataType);
-											if (/^image\//.test(dataType)) {
-												reader.readAsDataURL(file);
-											}
-										} catch(e) {
-											console.log(e);
-										}
-	 								});
-
-									Ext.EventManager.on(dom, 'dragenter', function(event) {
-										textField.getEl().highlight();
-									});
-									Ext.EventManager.on(dom, 'drop', function(event) {
-										try {
-											var file = event.browserEvent.dataTransfer.files[0];
-											// console.log(file);
-											var dataType = file.type;
-											// console.log(dataType);
-											if (/^image\//.test(dataType)) {
-												reader.readAsDataURL(file);
-											}
-										} catch(e) {
-											console.log(e);
-										}
-									});
-	 							},
-	 							keydown : function(textField, event) {
-	 								if (event.getKey() == 13 && (event.ctrlKey || event.shiftKey || event.altKey)) {
-	 									var b = Ext.getCmp('sendButton');
-	 									b.fireEvent('click', b, event);
-	 									event.stopEvent();
-	 									return false;
-	 								}
-	 							}
-	 						}
-						}),
-						{
-							id : 'MainImgIcon',
-							// autoWidth : true,
-							xtype : 'button',
-							disabled : true,
-							text : '画像なし',
-							listeners: {
-								enable : function(self) {
-									self.setText('画像あり');
-								},
-								disable : function(self) {
-									self.setText('画像なし');
-								},
-								click : (function() {
-									var win = new Ext.Window({
-										//autoWidth : true,
-										width : 500,
-										//autoHeight : true,
-										height : 350,
-										buttonAlign : 'center',
-										closable : true,
-										closeAction : 'hide',
-										initHidden : true,
-										layout : 'fit',
-										hideMode : 'visibility',
-										modal : true,
-										resizable : true,
-										title : '添付画像',
-										items : [
-										{
-											autoScroll : true,
-											border : false,
-											html : '<img id="dummyImage" style="position:absolute;visibility:hidden;" />' +
-												'<canvas id="MainImage" style="border:1px solid silver;" />'
-										}
-										],
-										listeners : {
-											beforeshow : function(win) {
-												var canvas = document.getElementById('MainImage');
-												var winWidth = Math.min(canvas.width+win.getFrameWidth()+Ext.getScrollBarWidth(), Math.floor(Ext.getBody().getWidth()*0.9));
-												winWidth = Math.max(winWidth, 250);
-												var winHeight = Math.min(canvas.height+win.getFrameHeight()+Ext.getScrollBarWidth(), Math.floor(Ext.getBody().getHeight()*0.8));
-												winHeight = Math.max(winHeight, 100);
-												// console.log(winWidth + ' : ' + winHeight);
-												win.setSize(winWidth, winHeight);
-												win.center();
-											},
-											render : function(win) {
-												win.body.on('click', function() {
-													win.hide();
-												});
-											}
-										},
-										fbar : [
-										{
-											text : '削除する',
-											listeners : {
-												click : function() {
-													Ext.getCmp('MainImgIcon').disable();
-													win.hide();
-												}
-											}
-										},
-										{
-											text : '閉じる',
-											listeners : {
-												click : function() {
-													win.hide();
-												}
-											}
-										}
-										]
-									});
-									win.show();
-									win.hide();
-									return function(self) {
-										win.show();
-									};
-								})()
-							}
-						},
-						new Ext.SplitButton((function() {
-							var _sendMessage = function(effect) {
-								var text = Ext.getCmp('MainMsg');
-								var msg = text.getValue();
-								if (msg != null && msg.length > 0) {
-									sendMessage({
-											msgTarget : null,
-											isReply : false,
-											effect : effect,
-											msg : msg
-										}, 
-										(Ext.getCmp('MainImgIcon').disabled ? null : (function() {
-											var canvas = document.getElementById('MainImage');
-											var imageWidth = canvas.width;
-											var imageHeight = canvas.height;
-											var imageData = canvas.toDataURL('image/png');
-											console.log('imageData width='+imageWidth+' height='+imageHeight+' length='+imageData.length);
-											return {
-												imageWidth : imageWidth,
-												imageHeight : imageHeight,
-												imageData : imageData
-											};
-										})())
-									);
-									Ext.getCmp('MainImgIcon').disable();
-									setTimeout(function(){ text.reset(); }, 0);
-								}
-								text.focus();
-							};
-							var clickHandler = function() {
-								var form = Ext.getCmp('msgEffectPanel').getForm();
-								var i = 0;
-								var checkBox;
-								var effect = 0;
-								while ((checkBox = form.findField('msgEffect_'+i)) != null) {
-									// console.log('checkbox'+i+' : '+ checkBox.getValue());
-									if (checkBox.getValue() == true) {
-										effect = (effect | (1 << i));
-									}
-									i++;
-								}
-								// console.log(effect);
-								_sendMessage(effect);
-								win.hide();
-							};
-							var win = new Ext.Window({
-								//autoWidth : true,
-								width : 400,
-								//autoHeight : true,
-								height : 250,
-								autoScroll : true,
-								buttonAlign : 'center',
-								closable : false,
-								closeAction : 'hide',
-								initHidden : true,
-								layout : 'fit',
-								hideMode : 'visibility',
-								modal : true,
-								resizable : true,
-								title : 'エフェクト選択',
-								items : [new Ext.form.FormPanel({
-									id : 'msgEffectPanel',
-									bodyStyle: {
-										padding : '5px',
-									},
-									defaultType: 'checkbox',
-									keys : [{
-										key: [49,50,51,52,53,54,55,56,57],
-										fn: function(key, event){
-											var form = Ext.getCmp('msgEffectPanel').getForm();
-											var checkBox = form.findField('msgEffect_'+(key - 49));
-											if (checkBox != null) {
-												checkBox.setValue(!checkBox.getValue());
-											}
-										}
-									},{
-										key: [13],
-										fn: clickHandler
-									}],
-									labelWidth : 300,
-									items : [{
-										name: 'msgEffect_0',
-										fieldLabel: '[1]文字を小さく(ShiftKeyと同じ)'
-									}, {
-										name: 'msgEffect_1',
-										fieldLabel: '[2]文字を大きく(AltKeyと同じ)'
-									}, {
-										name: 'msgEffect_2',
-										fieldLabel: '[3]投降後、数秒で自動的に削除'
-									}, {
-										name: 'msgEffect_3',
-										fieldLabel: '[4]強制的にデスクトップ通知を表示'
-									}]
-								})],
-								listeners : {
-									beforeshow : function(win) {
-										var form = Ext.getCmp('msgEffectPanel').getForm();
-										var i = 0;
-										var checkBox;
-										while ((checkBox = form.findField('msgEffect_'+i)) != null) {
-											checkBox.setValue(false);
-											i++;
-										}
-									},
-									show : function(win) {
-										setTimeout(function() {
-											var form = Ext.getCmp('msgEffectPanel').getForm();
-											form.findField('msgEffect_0').focus();
-										}, 200);
-									}
-								},
-								fbar : [
-								{
-									text : '送信',
-									listeners : {
-										click : clickHandler
-									},
-								},
-								{
-									text : 'キャンセル',
-									listeners : {
-										click : function() {
-											win.hide();
-										}
-									}
-								}
-								]
-							});
-							return {
-								id : 'sendButton',
-								autoWidth : true,
-								style : {
-									width : '8em !important'
-								},
-								text : '　送信　',
-								menu: new Ext.menu.Menu({
-									items: [
-										{
-											text: '各種効果',
-											handler: function(){
-												win.show();
-											}
-										}
-									]
-								}),
-								listeners : {
-									click : function(button, event) {
-										_sendMessage(event.shiftKey ? (1<<0) : event.altKey ? (1<<1) : 0);
-									}
-								}
-							};
-						})())
-					]
-				}]
-			}]
-		},{
+		items:[
+		new MessagePanel(null),
+		{
 			id : 'CanvasTab',
 			title	: '共有お絵かき',
 			layout : 'border',
@@ -1862,6 +1904,8 @@ var msgAdd = (function() {
 							data.useReadNotification &&
 							targetPanel.getId() != 'PrivateMsgLogView'
 							);
+					var msgID = targetPanel.getId() + '_msg_' + data.time;
+					var msgImageID = targetPanel.getId() + '_msgImage_' + data.time;
 					if (isShowOpenButton) {
 						items.push({
 							xtype : 'button',
@@ -1876,7 +1920,10 @@ var msgAdd = (function() {
 								},
 								click : function(button) {
 									button.hide();
-									button.nextSibling().show();
+									Ext.getCmp(msgID).show();
+									if (Ext.getCmp(msgImageID) != null) {
+										Ext.getCmp(msgImageID).show();
+									}
 									socket.emit('read notification', common.encryptByAES({
 										from : myID,
 										to : data.id,
@@ -1888,6 +1935,7 @@ var msgAdd = (function() {
 						});
 					}
 					items.push({
+						id : msgID,
 						// height : 50,
 						autoHeight : true,
 						// autoWidth : true,
@@ -1982,6 +2030,8 @@ var msgAdd = (function() {
 					if (data.imageData && noEncryptedData != null && noEncryptedData.imageData != null) {
 						var width = Math.min(noEncryptedData.imageWidth, 128);
 						items.push({
+							id : msgImageID,
+							hidden : (isShowOpenButton),
 							border : true,
 							width : width,
 							html : '<img style="max-width:'+width+'px;cursor:pointer;"' +
@@ -1997,6 +2047,8 @@ var msgAdd = (function() {
 						});
 					} else if (data.imageData) {
 						items.push({
+							id : msgImageID,
+							hidden : (isShowOpenButton),
 							border : true,
 							width : 48,
 							height : 48,
@@ -2109,117 +2161,9 @@ var showDesktopPopup = (function() {
 function addPrivateTab(user) {
 	var tabPanel = Ext.getCmp('tabPanel');
 	var escapedUserID = Ext.util.Format.htmlEncode(user.id);
-	var escapedUserName = Ext.util.Format.htmlEncode(user.name);
-	var escapedHost = Ext.util.Format.htmlEncode(user.host);
-	var escapedAddr = Ext.util.Format.htmlEncode(user.addr);
 	if (Ext.getCmp('PrivateTab_' + escapedUserID) == null) {
 		console.log('open new tab : ' + JSON.stringify(user));
-		tabPanel.add({
-			id : 'PrivateTab_' + escapedUserID,
-			title	: 'w/ ' + escapedUserName,
-			layout : 'fit',
-			closable : true,
-			items : 
-			[{
-				title : escapedUserName + ' : ' + escapedHost + '(' + escapedAddr + ')' + ' とのプライベート板',
-				layout : 'border',
-				items : [
-					{
-						id : 'PrivateView_' + escapedUserID,
-						region:'center',
-						autoScroll : true,
-						bodyStyle : {
-							backgroundColor : 'transparent !important'
-						},
-						items : [
-						]
-					}, {
-						region:'north',
-						border : false,
-						autoHeight : true,
-						layout : 'column',
-						// height : 50,
-						items : [
-						{
-							xtype : 'toolbar',
-							columnWidth　: 1.0,
-							items : [
-							'->',
-							{
-								id : 'PrivateNotify_' + escapedUserID,
-								xtype : 'checkbox',
-								boxLabel : '開封通知',
-								checked : true
-							},
-							' '
-							]
-						},
-						{
-							id : 'PrivateMsgContainer_' + escapedUserID,
-							columnWidth　: 1.0,
-							layout : 'hbox',
-							layoutConfig : {
-								align : 'stretch'
-							},
-							bodyStyle : {
-								height : '1.5em'
-							},
-							items : 
-							[
-								new Ext.form.TextArea({
-									id : 'PrivateMsg_' + escapedUserID,
-			 						flex : 1,
-			 						enableKeyEvents : true,
-			 						// grow : true,
-			 						// preventScrollbars : true,
-			 						style : {
-										fontSize : '1.2em'
-			 						},
-									listeners : {
-			 							render : function(textField) {
-			 								Ext.getCmp('PrivateMsgContainer_' + escapedUserID).setHeight(
-			 									Math.ceil(Ext.util.TextMetrics.measure('PrivateMsg_' + escapedUserID,'あ').height * 2.5));
-			 							},
-										keydown : function(textField, event) {
-											if (event.getKey() == 13 && event.ctrlKey) {
-												Ext.getCmp('PrivateSend_' + escapedUserID).fireEvent('click');
-												event.stopEvent();
-												return false;
-											}
-										}
-									}
-								}),
-								new Ext.Button({
-									id : 'PrivateSend_' + escapedUserID,
-									//autoWidth : true,
-									style : {
-										width : '8em !important'
-									},
-									text : '　送信　',
-									listeners : {
-										click : function() {
-											var text = Ext.getCmp('PrivateMsg_' + escapedUserID);
-											var msg = text.getValue();
-											if (msg != null && msg.length > 0) {
-												sendMessage({
-													msgTarget : user.id,
-													isReply : false,
-													useReadNotification : Ext.getCmp('PrivateNotify_' + escapedUserID).getValue(),
-													msg : msg
-												});
-												setTimeout(function(){ text.reset(); }, 0);
-											}
-											text.focus();
-										}
-									}
-								})
-							]
-						}
-						]
-					}
-				]
-			}]
-		});
+		tabPanel.add(new MessagePanel(user));
 		tabPanel.doLayout();
 	}
 	tabPanel.setActiveTab('PrivateTab_' + escapedUserID);
