@@ -7,7 +7,32 @@ var socket = null;
 var connected = false;
 var config = {};
 var configTmp = null;
-var privateMsgLog = [];
+
+var wsChatDB = {
+	close : function() {}
+};
+(function() {
+	if (!global.indexedDB) {
+		return;
+	}
+	var request = global.indexedDB.open('ws_chat');
+	request.onupgradeneeded = function() {
+		var db = request.result;
+		var store = db.createObjectStore('privateMsg', {keyPath: 'time'});
+		wsChatDB = db;
+		console.log(wsChatDB);
+	};
+	request.onsuccess = function() {
+		var db = request.result;
+		wsChatDB = db;
+		console.log(wsChatDB);
+	};
+	request.onerror = function() {
+		console.log('indexedDB open error');
+		console.log(arguments);
+	}
+})();
+
 var myID, myName, myHost, myAddr;
 var userStore = new Ext.data.JsonStore({
 	'autoDestroy': true,
@@ -36,6 +61,17 @@ if (!global.JSON) {
 if (!global.localStorage) {
 	global.localStorage = {};
 }
+if (!Object.observe && Object.watch) {
+	Object.observe = function(item, observer) {
+		for (var i in item) {
+			item.watch(i, function(id, oldVal, newVal) {
+				var newItem = Ext.apply({}, item);
+				newItem[i] = newVal;
+				observer([{ object: newItem, type: 'update', name: i, oldValue: oldVal }]);
+			});
+		}
+	};
+}
 
 if (global.applicationCache) {
 	var appCache = global.applicationCache;
@@ -55,8 +91,8 @@ if (global.applicationCache) {
 
 Ext.EventManager.on(global, 'unload', function() {
 	localStorage.config = JSON.stringify(config);
-	if (myName != null && privateMsgLog.length > 0) {
-		localStorage['privateMsgLog'] = JSON.stringify(privateMsgLog);
+	if (wsChatDB != null) {
+		wsChatDB.close();
 	}
 	if (socket != null) {
 		socket.disconnect();
@@ -1413,20 +1449,25 @@ function join() {
 		userStore.loadData(data);
 
 		//プライベートメッセージ読み込み
-		if (localStorage['privateMsgLog']) {
-			try {
-				var objStr = localStorage['privateMsgLog'];
-				var obj = JSON.parse(objStr);
-				if (obj instanceof Array) {
-					privateMsgLog = obj;
-					// console.log(objStr);
-				}
-			} catch (e) { console.log(e); }
-		}
 		var msgPanel = Ext.getCmp('PrivateMsgLogView');
-		for (var i=0,l=privateMsgLog.length; i<l; i++) {
-			msgAdd(msgPanel, privateMsgLog[i]);
-		}
+		var tx = wsChatDB.transaction('privateMsg', 'readwrite');
+		// console.log(tx);
+		var store = tx.objectStore('privateMsg');
+		console.log(store);
+		var request = store.openCursor();
+		console.log(request);
+		request.onsuccess = function() {
+			var cursor = request.result;
+			if (cursor) {
+				// console.log(cursor.value);
+				msgAdd(msgPanel, cursor.value);
+				cursor.continue();
+			}
+		};
+		request.onerror = function() {
+			console.log('request error');
+			console.log(arguments);
+		};
 
 		Ext.getCmp('MainMsg').focus();
 	});
@@ -1590,26 +1631,36 @@ function handleMessage(data, noEncryptedData, callbackFn) {
 	}
 	if (data.isPrivate) {
 		msgAdd(Ext.getCmp('PrivateMsgLogView'), data);
+
+		//余分なログの削除
 		var LOG_LIMIT = 100;
-		if (privateMsgLog.length >= LOG_LIMIT) {
-			var delCount = privateMsgLog.length - LOG_LIMIT + 1;
-			var tmpArray = [];
-			for (var i=0,l=privateMsgLog.length; i<l; i++) {
-				var oldData = privateMsgLog[i];
-				if (oldData.favorite || delCount == 0) {
-					tmpArray.push(oldData);
-					continue;
+		var logCount = 0;
+		var tx = wsChatDB.transaction('privateMsg', 'readwrite');
+		var store = tx.objectStore('privateMsg');
+		var request = store.openCursor(null, 'prev');
+		request.onsuccess = function() {
+			var cursor = request.result;
+			// console.log(request.result);
+			if (cursor) {
+				var val = cursor.value;
+				if (val.favorite !== true) {
+					if (logCount > LOG_LIMIT) {
+						console.log('log delete : ' + JSON.stringify(val));
+						cursor.delete();
+					} else {
+						logCount++;
+					}
 				}
-				delCount--;
+				cursor.continue();
 			}
-			privateMsgLog = tmpArray;
-		}
-		privateMsgLog.push(data);
-		if (privateMsgLog.length > LOG_LIMIT) {
-			Ext.MessageBox.alert('警告',
-				'過去ログの最大保存数をオーバーしています。不要なお気に入りを解除してください。<br/>'
-				+ '最大保存数：'+LOG_LIMIT+' 現在の保存対象ログ数:'+privateMsgLog.length);
-		}
+		};		
+		request.onerror = function() {
+			console.log('request.onerror');
+			console.log(arguments);
+		};
+
+		//Object.observeで監視しているイベントを発火し、DBに保存させる
+		data.favorite = false;
 	}
 }
 
@@ -1966,6 +2017,31 @@ var msgAdd = (function() {
 		}
 		targetPanel.insert(0, msgPanel);
 		if (doLayout) { targetPanel.doLayout(); }
+
+		if (data.isPrivate) {
+			//データが変更されたら、DBを更新する
+			Object.observe(data, function(changes) {
+				// console.log(changes);
+				var changeObject = changes[changes.length-1].object;
+				var tx = wsChatDB.transaction('privateMsg', 'readwrite');
+				// console.log(tx);
+				var store = tx.objectStore('privateMsg');
+				// console.log(data);
+				store.put(changeObject);
+				tx.oncomplete = function() {
+					// console.log('transaction complete');
+					// console.log(arguments);
+				};
+				tx.onabort = function() {
+					console.log('transaction abort');
+					console.log(arguments);
+				};
+				tx.onerror = function() {
+					console.log('transaction error');
+					console.log(arguments);
+				};
+			});
+		}
 	};
 })();
 

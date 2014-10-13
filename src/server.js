@@ -448,7 +448,8 @@ io.sockets.on('connection', function (socket) {
 					'effect' : data.effect,
 					'color' : data.color,
 					'msg' : msg,
-					'imageData' : (noEncryptedData != null && noEncryptedData.imageData != null)
+					'imageData' : (noEncryptedData != null && noEncryptedData.imageData != null),
+					'favorite' : null
 				};
 
 				emit(socket, 'message push', sendMsg, noEncryptedData);
