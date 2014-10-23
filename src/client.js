@@ -1681,7 +1681,14 @@ function handleMessage(data, noEncryptedData, callbackFn) {
 					(data.isPrivate ?
 						config.notification_privateMsgTime : 
 						config.notification_publicMsgTime),
-				tabID
+				tabID,
+				function() {
+					if (!data.useReadNotification) { return; }
+					var readButton = Ext.getCmp('readButton_' + Ext.util.Format.htmlEncode(data.id) + '_' + data.time);
+					if (readButton != null && readButton.isVisible()) {
+						readButton.fireEvent('click', readButton);
+					}
+				}
 			);
 		}
 	}
@@ -1934,6 +1941,7 @@ var msgAdd = (function() {
 					if (isShowOpenButton) {
 						items.push({
 							xtype : 'button',
+							id : 'readButton_' + Ext.util.Format.htmlEncode(data.id) + '_' + data.time,
 							text : '開封する',
 							columnWidth: 1,
 							style : {
@@ -2129,9 +2137,10 @@ var msgAdd = (function() {
 
 var showDesktopPopup = (function() {
 	var timerTable = {};
-	return function(title, msg, showTime, focusTabID) {
+	return function(title, msg, showTime, focusTabID, clickedCallback) {
 		// console.log('NotificationUtil.isSupported: ' + NotificationUtil.isSupported);
 		// console.log('NotificationUtil.checkPermission: ' + NotificationUtil.checkPermission());
+		if (clickedCallback == null) { clickedCallback = function(){} }
 		if (
 			NotificationUtil.isSupported &&
 			NotificationUtil.checkPermission() == 'granted'
@@ -2157,9 +2166,11 @@ var showDesktopPopup = (function() {
 							tabPanel.setActiveTab(focusTabID);
 							setTimeout(function() {
 								alert(title + '：\n' + msg);
+								clickedCallback();
 							}, 0);
 						} else {
 							alert(title + '：\n' + msg);
+							clickedCallback();
 						}
 					},
 					onshow : function() {
