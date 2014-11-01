@@ -2164,14 +2164,13 @@ var showDesktopPopup = (function() {
 						if (focusTabID != null) {
 							var tabPanel = Ext.getCmp('tabPanel');
 							tabPanel.setActiveTab(focusTabID);
-							setTimeout(function() {
-								alert(title + '：\n' + msg);
-								clickedCallback();
-							}, 0);
-						} else {
-							alert(title + '：\n' + msg);
-							clickedCallback();
 						}
+						setTimeout(function() {
+							if (document.hidden === true) {
+								alert(title + '：\n' + msg);
+							}
+							clickedCallback();
+						}, 0);
 					},
 					onshow : function() {
 						if (showTime > 0) {
