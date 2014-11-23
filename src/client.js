@@ -8,9 +8,7 @@ var connected = false;
 var config = {};
 var configTmp = null;
 
-var wsChatDB = {
-	close : function() {}
-};
+var wsChatDB = null;
 (function() {
 	if (!global.indexedDB) {
 		return;
@@ -593,6 +591,13 @@ var MessagePanel = Ext.extend(Ext.Panel, {
 						//backgroundColor : '#4E79B2 !important'
 					},
 					//layout : 'vbox',
+					// listeners : {
+					// 	resize : function(panel, adjWidth, adjHeight, rawWidth, rawHeight) {
+					// 		panel.items.each(function(child) {
+					// 			child.setWidth(panel.getInnerWidth()-20);
+					// 		});
+					// 	}
+					// },
 					items : [
 					]
 				}]
@@ -1509,25 +1514,32 @@ function join() {
 		userStore.loadData(data);
 
 		//プライベートメッセージ読み込み
-		var msgPanel = Ext.getCmp('PrivateMsgLogView');
-		var tx = wsChatDB.transaction('privateMsg', 'readwrite');
-		// console.log(tx);
-		var store = tx.objectStore('privateMsg');
-		console.log(store);
-		var request = store.openCursor();
-		console.log(request);
-		request.onsuccess = function() {
-			var cursor = request.result;
-			if (cursor) {
-				// console.log(cursor.value);
-				msgAdd(msgPanel, cursor.value);
-				cursor.continue();
+		var readPrivateMsg = function() {
+			if (wsChatDB == null) {
+				setTimeout(readPrivateMsg, 1000);
+				return;
 			}
+			var msgPanel = Ext.getCmp('PrivateMsgLogView');
+			var tx = wsChatDB.transaction('privateMsg', 'readwrite');
+			// console.log(tx);
+			var store = tx.objectStore('privateMsg');
+			console.log(store);
+			var request = store.openCursor();
+			console.log(request);
+			request.onsuccess = function() {
+				var cursor = request.result;
+				if (cursor) {
+					// console.log(cursor.value);
+					msgAdd(msgPanel, cursor.value);
+					cursor.continue();
+				}
+			};
+			request.onerror = function() {
+				console.log('request error');
+				console.log(arguments);
+			};
 		};
-		request.onerror = function() {
-			console.log('request error');
-			console.log(arguments);
-		};
+		readPrivateMsg();
 
 		Ext.getCmp('MainMsg').focus();
 	});
@@ -1793,13 +1805,45 @@ var msgAdd = (function() {
 			color : 'silver',
 			fontSize : 'small'
 		};
+		var headerId = null;
+		var spacerId = null;
+		var adjustSpacer = (function() {
+			var timerID = null;
+			return function() {
+				if (timerID != null) {
+					clearTimeout(timerID);
+					timerID = null;
+				}
+				timerID = setTimeout(function() {
+					if (headerId == null || spacerId == null) { return; }
+					var header = Ext.getCmp(headerId);
+					var spacer = Ext.getCmp(spacerId);
+					var spacerWidth = spacer.getWidth();
+					var totalWidth = 0;
+					header.items.each(function(child) {
+						totalWidth += child.getWidth();
+					});
+					totalWidth -= spacerWidth;
+					// console.log(header.getWidth() +'-'+ totalWidth);
+					if ((header.getWidth() - totalWidth) > 10) {
+						spacer.setWidth(header.getWidth() - totalWidth);
+					} else {
+						spacer.setWidth(10);
+					}
+					msgPanel.doLayout();
+				}, 10);
+			}
+		})();
+
 		var msgPanel = new Ext.Panel({
 			autoWidth : true,
 			autoHeight : true,
+			// width : 350,
 			// height : 150,
-			bodyStyle : {
-				height : '2em'
-			},
+			// boxMinWidth : 300,
+			// bodyStyle : {
+			// 	height : '2em'
+			// },
 			padding : 5,
 			// layout : 'table',
 			// layoutConfig : {
@@ -1808,118 +1852,131 @@ var msgAdd = (function() {
 			data : data,
 			items : 
 			[{
-				autoWidth : true,
-				autoHeight : true,
-				// height : 50,
-				layout : 'hbox',
-				// layoutConfig : {
-				// 	align : 'stretch'
-				// },
+				layout : 'column',
 				border : false,
-				bodyStyle : {
-					height : '1em'
-				},
-				defaults:{
+				items : [{
 					border : false,
-					bodyStyle : headerDefaultStyle
-				},
-				listeners : {
-					render : function(panel) {
-						setTimeout(function() {
-							//Chrome28で、ヘッダ行の高さが0でレンダリングされる場合があったので、回避策としてmin-heightを設定する
-							var height = 10;
-							var children = [].
-								concat(panel.findByType('panel')).
-								concat(panel.findByType('button'));
-							for (var i=0,l=children.length; i<l; i++) {
-								var component = children[i];
-								// console.log(component.getId() + ' ' + component.getXType() + ' ' + component.getHeight());
-								if (component.getHeight() > height) {
-									height = component.getHeight();
-								}
-							}
-							var dom = panel.getEl().dom;
-							if (dom.getElementsByClassName) {
-								var innerPanel = dom.getElementsByClassName('x-box-inner');
-								if (innerPanel.length > 0) {
-									innerPanel[0].style.minHeight = height + 'px';
-								}
-							}
-						}, 1);
-					}
-				},
-				items :
-				(function() {
-					var items = [];
-					items.push({
-						html : Ext.util.Format.htmlEncode(data.name) 
-					});
-					items.push({
-						html : 
-							Ext.util.Format.htmlEncode(data.host) 
-							+ '('
-							+ Ext.util.Format.htmlEncode(data.addr)
-							+ ')'
-					});
-					items.push({
-						xtype:'spacer',
-						flex:1
-					});
-					items.push({
-						html : Ext.util.Format.htmlEncode(
-							Ext.util.Format.date(new Date(data.time),'Y/m/d H:i:s')
-						)
-					});
-					if (data.id == myID　&& !data.isPrivate) {
-						var messageDelete = function() {
-							socket.emit('message delete', common.encryptByAES({
-							   	'time' : data.time
-							}, commonKey));
+					columnWidth: 1,
+					listeners : {
+						bodyresize : function(self, width, height) {
+							// console.log('bodyresize');
+							adjustSpacer();
 						}
-						items.push({
-							xtype : 'button',
-							text : '削除',
-							listeners : {
-								click : function() {
-									messageDelete();
-								}
+					},
+					items : [{
+						autoWidth : true,
+						autoHeight : true,
+						// height : 50,
+						layout : 'hbox',
+						// layoutConfig : {
+						// 	align : 'stretch'
+						// },
+						border : false,
+						// bodyStyle : {
+						// 	height : '1em'
+						// },
+						defaults:{
+							border : false,
+							bodyStyle : headerDefaultStyle
+						},
+						listeners : {
+							render : function(self) {
+								headerId = self.getId();
+							},
+							afterrender : function(self) {
+								// console.log('afterrender');
+								adjustSpacer();
 							}
-						});
-					}
-					if (targetPanel.getId() == 'PrivateMsgLogView') {
-						items.push({
-							xtype : 'button',
-							text : !!data.favorite ? 'お気に入り解除' : 'お気に入り追加',
-							enableToggle : true,
-							pressed : !!data.favorite,
-							toggleHandler : function(button, pushed) {
-								if (pushed) {
-									data.favorite = true;
-									button.setText('お気に入り解除');
-								} else {
-									data.favorite = false;
-									button.setText('お気に入り追加');
+						},
+						items : (function() {
+							var items = [];
+							items.push({
+								html : Ext.util.Format.htmlEncode(data.name) 
+									+ '&nbsp;'
+									+ Ext.util.Format.htmlEncode(data.host) 
+									+ '('
+									+ Ext.util.Format.htmlEncode(data.addr)
+									+ ')'
+							});
+							items.push({
+								html : '&nbsp;',
+								listeners : {
+									render : function(self) {
+										spacerId = self.getId();
+									}
 								}
+							});
+							// items.push({
+							// 	xtype : 'spacer',
+							// 	flex: 1,
+							// });
+							items.push({
+								html : Ext.util.Format.htmlEncode(
+										Ext.util.Format.date(new Date(data.time),'Y/m/d')
+									) 
+									+ '&nbsp;'
+									+ Ext.util.Format.htmlEncode(
+										Ext.util.Format.date(new Date(data.time),'H:i:s')
+									) 
+							});
+							if (data.isPrivate &&
+									data.msgTarget != myID && 
+									data.useReadNotification &&
+									targetPanel.getId() != 'PrivateMsgLogView') {
+								items.push({
+									id : 'unreadLabel_' + Ext.util.Format.htmlEncode(data.msgTarget) + '_' + data.time,
+									bodyStyle : Ext.applyIf({color : 'red'}, headerDefaultStyle),
+									html : '(未読)',
+									listeners : {
+										destroy : function(self) {
+											// msgPanel.doLayout();
+											adjustSpacer();
+										}
+									}
+								});
 							}
-						});
-					}
-					if (data.isPrivate &&
-							data.msgTarget != myID && 
-							data.useReadNotification &&
-							targetPanel.getId() != 'PrivateMsgLogView') {
-						items.push({
-							id : 'unreadLabel_' + Ext.util.Format.htmlEncode(data.msgTarget) + '_' + data.time,
-							bodyStyle : Ext.applyIf({color : 'red'}, headerDefaultStyle),
-							html : '(未読)',
-							listeners : {
-								destroy : function(self) {
-									msgPanel.doLayout();
+							return items;
+						})()
+					}]
+				}, {
+					autoWidth : true,
+					autoHeight : true,
+					border : false,
+					items : (function() {
+						var items = [];
+						if (data.id == myID　&& !data.isPrivate) {
+							items.push({
+								xtype : 'button',
+								text : '削除',
+								listeners : {
+									click : function() {
+										socket.emit('message delete', common.encryptByAES({
+										   	'time' : data.time
+										}, commonKey));
+									}
 								}
-							}
-						});
-					}
-					return items;
-				})()
+							});
+						}
+						if (targetPanel.getId() == 'PrivateMsgLogView') {
+							items.push({
+								xtype : 'button',
+								text : !!data.favorite ? 'お気に入り解除' : 'お気に入り追加',
+								enableToggle : true,
+								pressed : !!data.favorite,
+								toggleHandler : function(button, pushed) {
+									if (pushed) {
+										data.favorite = true;
+										button.setText('お気に入り解除');
+									} else {
+										data.favorite = false;
+										button.setText('お気に入り追加');
+									}
+								}
+							});
+						}
+						return items;
+					})()
+				}]
 			}, {
 				autoWidth : true,
 				autoHeight : true,
