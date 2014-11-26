@@ -180,6 +180,13 @@ var NotificationUtil = {
 
 };
 
+
+var MessageView = Ext.extend(Ext.Panel, {
+	constructor: function(config) {
+		MessageView.superclass.constructor.call(this, config);
+	}
+});
+
 var MessagePanel = Ext.extend(Ext.Panel, {
 	constructor: function(user) {
 
@@ -582,7 +589,7 @@ var MessagePanel = Ext.extend(Ext.Panel, {
 							]
 						}
 					]
-				}, {
+				}, new MessageView({
 					id : viewName,
 					region:'center',
 					autoScroll : true,
@@ -591,16 +598,9 @@ var MessagePanel = Ext.extend(Ext.Panel, {
 						//backgroundColor : '#4E79B2 !important'
 					},
 					//layout : 'vbox',
-					// listeners : {
-					// 	resize : function(panel, adjWidth, adjHeight, rawWidth, rawHeight) {
-					// 		panel.items.each(function(child) {
-					// 			child.setWidth(panel.getInnerWidth()-20);
-					// 		});
-					// 	}
-					// },
 					items : [
 					]
-				}]
+				})]
 			}]
 		};
 		console.log(config);
@@ -931,7 +931,7 @@ Ext.onReady(function() {
 						Ext.MessageBox.alert(
 							'ヘルプ',
 							'・二人きりで会話したい場合は、参加者一覧から該当のユーザ行のアイコンをクリック！'
-							+'<br />・ブラウザはIE9でも動きますが、GoogleChrome最新版がお勧め'
+							+'<br />・ブラウザはGoogleChromeかFirefoxの最新版で！'
 							+'<br />・気に入ったら美味しいビールおごって♪'
 						);
 					}
@@ -1118,7 +1118,45 @@ Ext.onReady(function() {
 						}
 					}
 				}, 10);
-			}
+			},
+			tabchange : function(tabPanel, newTab) {
+				if(newTab instanceof MessagePanel || newTab.getId() == 'PrivateMsgLogTab') {
+					setTimeout(function() {
+						// console.log('tabchange');
+						newTab.findBy(function(child) {
+							if (child instanceof MessageView) {
+								child.items.each(function(child) {
+									child.fireEvent('adjustSpacer');
+								});
+							}
+						});
+					}, 10);
+				}
+			},
+			resize : (function() {
+				var timer = null;
+				return function(panel, adjWidth, adjHeight, rawWidth, rawHeight) {
+					if (timer != null) {
+						clearTimeout(timer);
+						timer = null;
+					}
+					timer = setTimeout(function() {
+						// console.log('resize');
+						var currentTab = panel.getActiveTab();
+						if (currentTab instanceof MessagePanel || currentTab.getId() == 'PrivateMsgLogTab') {
+							currentTab.findBy(function(child) {
+								if (child instanceof MessageView) {
+									// console.log(child);
+									child.items.each(function(child) {
+										child.fireEvent('adjustSpacer');
+									});
+								}
+							});
+						}
+						timer = null;
+					}, 500);
+				};
+			})()
 		},
 		items:[
 		new MessagePanel(null),
@@ -1287,7 +1325,7 @@ Ext.onReady(function() {
 			title	: 'PrivateMsg過去ログ',
 			layout : 'border',
 			closable : false,
-			items : [{
+			items : [new MessageView({
 				id : 'PrivateMsgLogView',
 				title : 'プライベートメッセージの過去ログ（読み取り専用）',
 				region:'center',
@@ -1297,7 +1335,7 @@ Ext.onReady(function() {
 				},
 				items : [
 				]
-			}]
+			})]
 		}]
 	});
 
@@ -1807,35 +1845,28 @@ var msgAdd = (function() {
 		};
 		var headerId = null;
 		var spacerId = null;
-		var adjustSpacer = (function() {
-			var timerID = null;
-			return function() {
-				if (timerID != null) {
-					clearTimeout(timerID);
-					timerID = null;
-				}
-				timerID = setTimeout(function() {
-					if (headerId == null || spacerId == null) { return; }
-					var header = Ext.getCmp(headerId);
-					var spacer = Ext.getCmp(spacerId);
-					var spacerWidth = spacer.getWidth();
-					var totalWidth = 0;
-					header.items.each(function(child) {
-						totalWidth += child.getWidth();
-					});
-					totalWidth -= spacerWidth;
-					// console.log(header.getWidth() +'-'+ totalWidth);
-					if ((header.getWidth() - totalWidth) > 10) {
-						spacer.setWidth(header.getWidth() - totalWidth);
-					} else {
-						spacer.setWidth(10);
-					}
-					msgPanel.doLayout();
-				}, 10);
+		var msgPanel = null;
+		var adjustSpacer = function() {
+			// console.log(headerId +', '+ spacerId);
+			if (headerId == null || spacerId == null) { return; }
+			var header = Ext.getCmp(headerId);
+			var spacer = Ext.getCmp(spacerId);
+			var spacerWidth = spacer.getWidth();
+			var totalWidth = 0;
+			header.items.each(function(child) {
+				totalWidth += child.getWidth();
+			});
+			totalWidth -= spacerWidth;
+			// console.log(header.getWidth() +'-'+ totalWidth);
+			if ((header.getWidth() - totalWidth) > 10) {
+				spacer.setWidth(header.getWidth() - totalWidth);
+			} else {
+				spacer.setWidth(10);
 			}
-		})();
+			msgPanel.doLayout();
+		};
 
-		var msgPanel = new Ext.Panel({
+		msgPanel = new Ext.Panel({
 			autoWidth : true,
 			autoHeight : true,
 			// width : 350,
@@ -1850,6 +1881,11 @@ var msgAdd = (function() {
 			// 	columns : 1
 			// },
 			data : data,
+			listeners : {
+				adjustSpacer : function() {
+					adjustSpacer();
+				}
+			},
 			items : 
 			[{
 				layout : 'column',
@@ -1858,9 +1894,8 @@ var msgAdd = (function() {
 					border : false,
 					columnWidth: 1,
 					listeners : {
-						bodyresize : function(self, width, height) {
-							// console.log('bodyresize');
-							adjustSpacer();
+						afterrender : function(self, width, height) {
+							setTimeout(adjustSpacer, 0);
 						}
 					},
 					items : [{
@@ -1882,10 +1917,6 @@ var msgAdd = (function() {
 						listeners : {
 							render : function(self) {
 								headerId = self.getId();
-							},
-							afterrender : function(self) {
-								// console.log('afterrender');
-								adjustSpacer();
 							}
 						},
 						items : (function() {
