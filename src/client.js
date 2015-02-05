@@ -209,7 +209,7 @@ var MessagePanel = Ext.extend(Ext.Panel, {
 
 		var buttonWidth = Math.ceil(Ext.util.TextMetrics.measure(document.body, 'あ').width * 4);
 
-		var config = {
+		var panelConfig = {
 			id : tabName,
 			title	: isPrivate ? ('w/ ' + escapedUserName) : '共有タイムライン',
 			closable : isPrivate ? true : false,
@@ -220,9 +220,17 @@ var MessagePanel = Ext.extend(Ext.Panel, {
 				items : [{
 					id : containerName,
 					region:'north',
+					split: true,
 					border : false,
-					autoHeight : true,
+					autoHeight : false,
 					layout : 'column',
+					listeners : {
+						resize : function(panel, adjWidth, adjHeight, rawWidth, rawHeight) {
+							panel.items.each(function(child) {
+								child.setHeight(panel.getHeight());
+							});
+						}
+					},
 					items : [
 	 					new Ext.form.TextArea({
 	 						id : msgName,
@@ -235,8 +243,8 @@ var MessagePanel = Ext.extend(Ext.Panel, {
 	 						listeners : {
 	 							render : function(textField) {
 
-	 								Ext.getCmp(msgName).setHeight(
-	 									Math.ceil(Ext.util.TextMetrics.measure(msgName, 'あ').height * 2.5));
+	 								Ext.getCmp(containerName).setHeight(
+	 									Math.ceil(Ext.util.TextMetrics.measure(msgName, 'あ').height * 2.5) + 2);
 
 	 								var dom = textField.getEl().dom;
 									var reader = new FileReader();
@@ -314,7 +322,7 @@ var MessagePanel = Ext.extend(Ext.Panel, {
 									});
 	 							},
 	 							keydown : function(textField, event) {
-	 								if (event.getKey() == 13 && (event.ctrlKey || event.shiftKey || event.altKey)) {
+	 								if (config.enable_ShortcutKey && event.getKey() == 13 && (event.ctrlKey || event.shiftKey || event.altKey)) {
 	 									var b = Ext.getCmp(sendButtonName);
 	 									b.fireEvent('click', b, event);
 	 									event.stopEvent();
@@ -328,6 +336,7 @@ var MessagePanel = Ext.extend(Ext.Panel, {
 							width : buttonWidth,
 							margins : 0,
 							padding : 0,
+							layout: 'fit',
 							items : [{
 								xtype : 'button',
 								id : imageIconName,
@@ -420,6 +429,7 @@ var MessagePanel = Ext.extend(Ext.Panel, {
 							width : buttonWidth,
 							margins : 0,
 							padding : 0,
+							layout: 'fit',
 							items : [
 								new Ext.SplitButton((function() {
 									var _sendMessage = function(effect) {
@@ -603,9 +613,9 @@ var MessagePanel = Ext.extend(Ext.Panel, {
 				})]
 			}]
 		};
-		console.log(config);
+		console.log(panelConfig);
 
-		MessagePanel.superclass.constructor.call(this, config);
+		MessagePanel.superclass.constructor.call(this, panelConfig);
 	}
 });
 
@@ -639,6 +649,7 @@ Ext.onReady(function() {
 		'notification_privateReplyMsgTime' : -1,
 		'notification_userAddDel' : true,
 		'notification_userAddDelTime' : 3.5,
+		'enable_ShortcutKey' : true,
 		'notification_sound' : false,
 		'messagePanel_fontSize' : 100
 	});
@@ -668,6 +679,8 @@ Ext.onReady(function() {
 		layout : 'border',
 		listeners : {
 			show : function(dialog) {
+				Ext.getCmp('configTab').setActiveTab(0);
+
 				configTmp = Ext.apply({}, config);
 
 				Ext.getCmp('notification_publicMsg_Field').setValue(config.notification_publicMsg);
@@ -682,6 +695,7 @@ Ext.onReady(function() {
 				Ext.getCmp('notification_userAddDelTime_Field').setDisabled(!config.notification_userAddDel);
 				Ext.getCmp('notification_userAddDelTime_Field').setValue(config.notification_userAddDelTime);
 
+				Ext.getCmp('enable_ShortcutKey_Field').setValue(config.enable_ShortcutKey);
 				Ext.getCmp('notification_sound_Field').setValue(config.notification_sound);
 			}
 		},
@@ -704,6 +718,7 @@ Ext.onReady(function() {
 		}],
 		items : [
 			new Ext.TabPanel({
+				id : 'configTab',
 				activeTab: 0,
 				enableTabScroll : true,
 				region : 'center',
@@ -879,6 +894,31 @@ Ext.onReady(function() {
 								checked : false,
 								handler : function(ckeckBox, checked) {
 									configTmp.notification_sound = checked;
+								}
+							}]
+						}]
+					}]
+				}, {
+					title: '画面操作',
+					layout : 'border',
+					autoScroll : true,
+					items : [{
+						border : false,
+						align : 'left',
+						region : 'center',
+						autoScroll : true,
+						padding: 10,
+						items : [{
+							xtype: 'fieldset',
+							title: 'ショートカットキー',
+							width: 400,
+							items : [{
+								id : 'enable_ShortcutKey_Field',
+								xtype: 'checkbox',
+								fieldLabel: '有効',
+								checked : false,
+								handler : function(ckeckBox, checked) {
+									configTmp.enable_ShortcutKey = checked;
 								}
 							}]
 						}]
