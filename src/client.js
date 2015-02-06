@@ -322,7 +322,11 @@ var MessagePanel = Ext.extend(Ext.Panel, {
 									});
 	 							},
 	 							keydown : function(textField, event) {
-	 								if (config.enable_ShortcutKey && event.getKey() == 13 && (event.ctrlKey || event.shiftKey || event.altKey)) {
+	 								if (event.getKey() == 13 && 
+	 									((config.enable_ShortcutKeyCtrlEnter && event.ctrlKey) || 
+	 									 (config.enable_ShortcutKeyShiftEnter && event.shiftKey) ||
+	 									 (config.enable_ShortcutKeyAltEnter && event.altKey))
+	 								) {
 	 									var b = Ext.getCmp(sendButtonName);
 	 									b.fireEvent('click', b, event);
 	 									event.stopEvent();
@@ -649,8 +653,10 @@ Ext.onReady(function() {
 		'notification_privateReplyMsgTime' : -1,
 		'notification_userAddDel' : true,
 		'notification_userAddDelTime' : 3.5,
-		'enable_ShortcutKey' : true,
 		'notification_sound' : false,
+		'enable_ShortcutKeyCtrlEnter' : true,
+		'enable_ShortcutKeyShiftEnter' : true,
+		'enable_ShortcutKeyAltEnter' : true,
 		'messagePanel_fontSize' : 100
 	});
 	console.log('config : ' + JSON.stringify(config));
@@ -695,8 +701,11 @@ Ext.onReady(function() {
 				Ext.getCmp('notification_userAddDelTime_Field').setDisabled(!config.notification_userAddDel);
 				Ext.getCmp('notification_userAddDelTime_Field').setValue(config.notification_userAddDelTime);
 
-				Ext.getCmp('enable_ShortcutKey_Field').setValue(config.enable_ShortcutKey);
 				Ext.getCmp('notification_sound_Field').setValue(config.notification_sound);
+
+				Ext.getCmp('enable_ShortcutKeyCtrlEnter_Field').setValue(config.enable_ShortcutKeyCtrlEnter);
+				Ext.getCmp('enable_ShortcutKeyShiftEnter_Field').setValue(config.enable_ShortcutKeyShiftEnter);
+				Ext.getCmp('enable_ShortcutKeyAltEnter_Field').setValue(config.enable_ShortcutKeyAltEnter);
 			}
 		},
 		fbar : [{
@@ -910,15 +919,32 @@ Ext.onReady(function() {
 						padding: 10,
 						items : [{
 							xtype: 'fieldset',
-							title: 'ショートカットキー',
+							title: 'ショートカットキーの有効化',
 							width: 400,
+							labelWidth : 200,
 							items : [{
-								id : 'enable_ShortcutKey_Field',
+								id : 'enable_ShortcutKeyCtrlEnter_Field',
 								xtype: 'checkbox',
-								fieldLabel: '有効',
+								fieldLabel: '送信（Ctrl+Enter）',
 								checked : false,
 								handler : function(ckeckBox, checked) {
-									configTmp.enable_ShortcutKey = checked;
+									configTmp.enable_ShortcutKeyCtrlEnter = checked;
+								}
+							}, {
+								id : 'enable_ShortcutKeyShiftEnter_Field',
+								xtype: 'checkbox',
+								fieldLabel: '小さい文字で送信（Shift+Enter）',
+								checked : false,
+								handler : function(ckeckBox, checked) {
+									configTmp.enable_ShortcutKeyShiftEnter = checked;
+								}
+							}, {
+								id : 'enable_ShortcutKeyAltEnter_Field',
+								xtype: 'checkbox',
+								fieldLabel: '大きい文字で送信（Alt+Enter）',
+								checked : false,
+								handler : function(ckeckBox, checked) {
+									configTmp.enable_ShortcutKeyAltEnter = checked;
 								}
 							}]
 						}]
