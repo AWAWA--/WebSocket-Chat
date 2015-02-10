@@ -353,9 +353,6 @@ io.sockets.on('connection', function (socket) {
 		getHostByAddr(address, '****', function(hostName) {
 			//util.log('chat start: ' + JSON.stringify(data));
 			var userName = '' + data.name;
-			if (userName.length > 100) {
-				userName = userName.substring(0, 100) + '...';
-			}
 			var userAgent = '' + socket.handshake.headers['user-agent'];
 			if (userAgent.length > 256) {
 				userAgent = userAgent.substring(0, 256) + '...';
@@ -381,6 +378,7 @@ io.sockets.on('connection', function (socket) {
 			var userData = {
 				id : socket.id,
 				name : userName,
+				state : data.state,
 				host : hostName,
 				addr : address,
 				loginDate : new Date().getTime(),
@@ -524,6 +522,18 @@ io.sockets.on('connection', function (socket) {
 				data.readTime = new Date().getTime();
 				emit(targetSocket, 'read notification', data);
 			});
+
+			socket.on('user change', function(str) {
+				var data = common.decryptByAES(str, commonKey);
+				if (!jsonValidate(socket, 'user_change', data)) { return; }
+				var client = clientMap[socket.id];
+				if (client == null) { return; }
+				for (var i in data) {
+					client.userData[i] = data[i];
+				}
+				emit(socket, 'user change', client.userData);
+				broadcastEmit(socket, 'user change', client.userData);
+			});
 		});
 	});
 
@@ -534,7 +544,7 @@ io.sockets.on('connection', function (socket) {
 			util.log('<-> del connection: '+JSON.stringify(client.userData));
 			delete clientMap[socket.id];
 			//if (event == 'booted') {
-				broadcastEmit(socket, 'user delete', {'users' : client.userData});
+				broadcastEmit(socket, 'user delete', client.userData);
 			//}
 		}
 	});

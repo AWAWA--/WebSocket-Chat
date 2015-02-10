@@ -41,7 +41,7 @@ var userStore = new Ext.data.JsonStore({
 	},
 	'root': 'users',
 	'idProperty': 'id',
-	'fields': ['id', 'name', 'host', 'addr', 'loginDate', 'userAgent']
+	'fields': ['id', 'name', 'state', 'host', 'addr', 'loginDate', 'userAgent']
 });
 var commonKey;
 
@@ -921,7 +921,7 @@ Ext.onReady(function() {
 							xtype: 'fieldset',
 							title: 'ショートカットキーの有効化',
 							width: 400,
-							labelWidth : 200,
+							labelWidth : 250,
 							items : [{
 								id : 'enable_ShortcutKeyCtrlEnter_Field',
 								xtype: 'checkbox',
@@ -957,6 +957,103 @@ Ext.onReady(function() {
 	var toolBar = new Ext.Toolbar({
 		autoHeight : true,
 		items: [
+			' ',
+			'状態',
+			(function() {
+				var store = new Ext.data.ArrayStore({
+				    fields: ['state'],
+				    data: [['在席'], ['不在'], ['打合せ'], ['外出'], ['食事']]
+				});
+				var enableEvent = true;
+				return new Ext.form.ComboBox({
+					id: 'myState',
+					width: 100,
+					editable: true,
+					triggerAction: 'all',
+					enableKeyEvents: true,
+					mode: 'local',
+					store: store,
+					valueField: 'state',
+					displayField: 'state',
+					value: store.getAt(0).get('state'),
+					listeners : {
+						select : function(combo, record, index) {
+							if (!enableEvent) { return; }
+							var newState = combo.getValue();
+							// console.log('newState: '+newState);
+							socket.emit('user change', common.encryptByAES({
+								name : myName,
+								state : newState
+							}, commonKey));
+						},
+						keydown : function(combo, event) {
+							if (event.getKey() == 13) {
+								var value = combo.getRawValue();
+								// console.log(value);
+								if (value == '') { return; }
+								if (store.find('state', value) != -1) { return; }
+								enableEvent = false;
+								store.loadData([[value]], true);
+								setTimeout(function() {
+									enableEvent = true;
+									combo.setValue(value);
+									combo.fireEvent('select', combo, null, -1);
+								}, 10);
+								event.stopEvent();
+								return false;
+							}
+						}
+					}
+				});
+			})(),
+			'-',
+			'文字サイズ',
+			new Ext.slider.SingleSlider({
+				width: 100,
+				value: config.messagePanel_fontSize,
+				increment: 10,
+				minValue: 50,
+				maxValue: 200,
+				listeners : (function() {
+					var chatMessageCSS = null;
+					try {
+						for (var i=0,l=document.styleSheets.length; i<l; i++) {
+							var styleSheet = document.styleSheets[i];
+							// console.log(styleSheet.title);
+							if (styleSheet.title == 'wsChatCSS') {
+								var rules = styleSheet.rules || styleSheet.cssRules;
+								for (var m=0,n=rules.length; m<n; m++) {
+									var rule = rules[m];
+									// console.log(rule.selectorText);
+									if (rule.selectorText == '.chatMessage') {
+										chatMessageCSS = rule;
+										break;
+									}
+								}
+								break;
+							}
+						}
+					} catch (e) { console.log(e); }
+					// console.log('chatMessageCSS: '+chatMessageCSS);
+					return {
+						render : function(slider) {
+							if (chatMessageCSS != null) {
+								chatMessageCSS.style.fontSize = (config.messagePanel_fontSize/100) + 'em';
+								console.log('fontSize : ' + chatMessageCSS.style.fontSize);
+							}
+						},
+						changecomplete : function(slider, newValue, thumb) {
+							if (chatMessageCSS != null) {
+								chatMessageCSS.style.fontSize = (newValue/100) + 'em';
+								console.log('fontSize : ' + chatMessageCSS.style.fontSize);
+								config.messagePanel_fontSize = newValue;
+								localStorage.config = JSON.stringify(config);
+							}
+						}
+					};
+				})()
+			}),
+			'->',
 			{
 				text : 'デスクトップ通知を許可',
 				listeners : {
@@ -1026,53 +1123,6 @@ Ext.onReady(function() {
 					}
 				}
 			},
-			'->',
-			'文字サイズ',
-			new Ext.slider.SingleSlider({
-				width: 100,
-				value: config.messagePanel_fontSize,
-				increment: 10,
-				minValue: 50,
-				maxValue: 200,
-				listeners : (function() {
-					var chatMessageCSS = null;
-					try {
-						for (var i=0,l=document.styleSheets.length; i<l; i++) {
-							var styleSheet = document.styleSheets[i];
-							// console.log(styleSheet.title);
-							if (styleSheet.title == 'wsChatCSS') {
-								var rules = styleSheet.rules || styleSheet.cssRules;
-								for (var m=0,n=rules.length; m<n; m++) {
-									var rule = rules[m];
-									// console.log(rule.selectorText);
-									if (rule.selectorText == '.chatMessage') {
-										chatMessageCSS = rule;
-										break;
-									}
-								}
-								break;
-							}
-						}
-					} catch (e) { console.log(e); }
-					// console.log('chatMessageCSS: '+chatMessageCSS);
-					return {
-						render : function(slider) {
-							if (chatMessageCSS != null) {
-								chatMessageCSS.style.fontSize = (config.messagePanel_fontSize/100) + 'em';
-								console.log('fontSize : ' + chatMessageCSS.style.fontSize);
-							}
-						},
-						changecomplete : function(slider, newValue, thumb) {
-							if (chatMessageCSS != null) {
-								chatMessageCSS.style.fontSize = (newValue/100) + 'em';
-								console.log('fontSize : ' + chatMessageCSS.style.fontSize);
-								config.messagePanel_fontSize = newValue;
-								localStorage.config = JSON.stringify(config);
-							}
-						}
-					};
-				})()
-			}),
 			' '
 		]
 	});
@@ -1118,7 +1168,12 @@ Ext.onReady(function() {
 						return Ext.util.Format.htmlEncode(value);
 					}
    				},
-   				{header: 'Name', dataIndex: 'name',
+   				{header: 'Name', dataIndex: 'name', width:100,
+					renderer: function(value, metaData, record, rowIndex, colIndex, store) {
+						return Ext.util.Format.htmlEncode(value);
+					}
+   				},
+   				{header: 'State', dataIndex: 'state', width:70,
 					renderer: function(value, metaData, record, rowIndex, colIndex, store) {
 						return Ext.util.Format.htmlEncode(value);
 					}
@@ -1581,6 +1636,7 @@ function join() {
 		}
 		socket.emit('chat start', {
 			name : myName,
+			state : Ext.getCmp('myState').getValue(),
 			reconnect : connected,
 			encryptedCommonKey : encryptedCommonKey
 		});
@@ -1688,18 +1744,32 @@ function join() {
 			);
 		}
 	});
+	socket.on('user change', function(str) {
+		var data = common.decryptByAES(str, commonKey);
+		var storeIndex = userStore.find('id', data.id);
+		if (storeIndex != -1) {
+			var record = userStore.getAt(storeIndex);
+			for (var i in data) {
+				if (i == 'id') { continue; }
+				record.set(i, data[i]);
+			}
+			record.commit();
+			var row = Ext.getCmp('userGrid').getView().getRow(storeIndex);
+			Ext.fly(row).highlight();
+		}
+	});
 	socket.on('user delete', function(str) {
 		var data = common.decryptByAES(str, commonKey);
-		var record = userStore.query('id', data.users.id);
-		if (record != null && record.length > 0) {
-			userStore.remove(record.get(0));
-		}
-		if (config.notification_userAddDel) {
-			showDesktopPopup(
-				'ユーザ退室',
-				'「' + data.users.name + '」 が退室しました。',
-				config.notification_userAddDelTime
-			);
+		var storeIndex = userStore.find('id', data.id);
+		if (storeIndex != -1) {
+			userStore.removeAt(storeIndex);
+			if (config.notification_userAddDel) {
+				showDesktopPopup(
+					'ユーザ退室',
+					'「' + data.name + '」 が退室しました。',
+					config.notification_userAddDelTime
+				);
+			}
 		}
 	});
 	socket.on('message push', function(encryptedData, noEncryptedData, callbackFn) {

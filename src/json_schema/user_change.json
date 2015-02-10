@@ -8,15 +8,8 @@
 		"state": {
 			"type": "string",
 			"maxLength": 256
-		},
-		"reconnect": {
-			"type": "boolean"
-		},
-		"encryptedCommonKey": {
-			"type": [ "string", "null" ],
-			"maxLength": 2048
 		}
 	},
-	"required": [ "name" ],
+	"required": [ "name", "state" ],
 	"additionalProperties": false
 }
