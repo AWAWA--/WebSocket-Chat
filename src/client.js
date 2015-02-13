@@ -962,7 +962,7 @@ Ext.onReady(function() {
 			(function() {
 				var store = new Ext.data.ArrayStore({
 				    fields: ['state'],
-				    data: [['在席'], ['不在'], ['打合せ'], ['外出'], ['食事']]
+				    data: [['在席'], ['離席中'], ['打合せ中'], ['外出中'], ['食事中']]
 				});
 				var enableEvent = true;
 				return new Ext.form.ComboBox({
@@ -1006,53 +1006,6 @@ Ext.onReady(function() {
 					}
 				});
 			})(),
-			'-',
-			'文字サイズ',
-			new Ext.slider.SingleSlider({
-				width: 100,
-				value: config.messagePanel_fontSize,
-				increment: 10,
-				minValue: 50,
-				maxValue: 200,
-				listeners : (function() {
-					var chatMessageCSS = null;
-					try {
-						for (var i=0,l=document.styleSheets.length; i<l; i++) {
-							var styleSheet = document.styleSheets[i];
-							// console.log(styleSheet.title);
-							if (styleSheet.title == 'wsChatCSS') {
-								var rules = styleSheet.rules || styleSheet.cssRules;
-								for (var m=0,n=rules.length; m<n; m++) {
-									var rule = rules[m];
-									// console.log(rule.selectorText);
-									if (rule.selectorText == '.chatMessage') {
-										chatMessageCSS = rule;
-										break;
-									}
-								}
-								break;
-							}
-						}
-					} catch (e) { console.log(e); }
-					// console.log('chatMessageCSS: '+chatMessageCSS);
-					return {
-						render : function(slider) {
-							if (chatMessageCSS != null) {
-								chatMessageCSS.style.fontSize = (config.messagePanel_fontSize/100) + 'em';
-								console.log('fontSize : ' + chatMessageCSS.style.fontSize);
-							}
-						},
-						changecomplete : function(slider, newValue, thumb) {
-							if (chatMessageCSS != null) {
-								chatMessageCSS.style.fontSize = (newValue/100) + 'em';
-								console.log('fontSize : ' + chatMessageCSS.style.fontSize);
-								config.messagePanel_fontSize = newValue;
-								localStorage.config = JSON.stringify(config);
-							}
-						}
-					};
-				})()
-			}),
 			'->',
 			{
 				text : 'デスクトップ通知を許可',
@@ -1075,6 +1028,61 @@ Ext.onReady(function() {
 							);
 						}
 					}
+				}
+			},
+			'-',
+			{
+				text : '文字サイズ',
+				menu : {
+					xtype : 'menu',
+					items : [
+						'大',
+						new Ext.slider.SingleSlider({
+							height: 100,
+							vertical : true,
+							value: config.messagePanel_fontSize,
+							increment: 10,
+							minValue: 50,
+							maxValue: 200,
+							listeners : (function() {
+								var chatMessageCSS = null;
+								try {
+									for (var i=0,l=document.styleSheets.length; i<l; i++) {
+										var styleSheet = document.styleSheets[i];
+										// console.log(styleSheet.title);
+										if (styleSheet.title == 'wsChatCSS') {
+											var rules = styleSheet.rules || styleSheet.cssRules;
+											for (var m=0,n=rules.length; m<n; m++) {
+												var rule = rules[m];
+												// console.log(rule.selectorText);
+												if (rule.selectorText == '.chatMessage') {
+													chatMessageCSS = rule;
+													break;
+												}
+											}
+											break;
+										}
+									}
+									if (chatMessageCSS != null) {
+										chatMessageCSS.style.fontSize = (config.messagePanel_fontSize/100) + 'em';
+										console.log('fontSize : ' + chatMessageCSS.style.fontSize);
+									}
+								} catch (e) { console.log(e); }
+								// console.log('chatMessageCSS: '+chatMessageCSS);
+								return {
+									changecomplete : function(slider, newValue, thumb) {
+										if (chatMessageCSS != null) {
+											chatMessageCSS.style.fontSize = (newValue/100) + 'em';
+											console.log('fontSize : ' + chatMessageCSS.style.fontSize);
+											config.messagePanel_fontSize = newValue;
+											localStorage.config = JSON.stringify(config);
+										}
+									}
+								};
+							})()
+						}),
+						'小'
+					]
 				}
 			},
 			'-',
