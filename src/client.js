@@ -188,7 +188,16 @@ var MessageView = Ext.extend(Ext.Panel, {
 });
 
 var MessagePanel = Ext.extend(Ext.Panel, {
+
+	sendMessage : function(data, noEncryptData) {
+		sendMessage(data, noEncryptData);
+	},
+
+	onClose : function(panel) {},
+
 	constructor: function(user) {
+
+		var messagePanel = this;
 
 		var isPrivate = (user != null);
 		var escapedUserID = isPrivate ? Ext.util.Format.htmlEncode(user.id) : '';
@@ -214,6 +223,11 @@ var MessagePanel = Ext.extend(Ext.Panel, {
 			title	: isPrivate ? ('w/ ' + escapedUserName) : '共有タイムライン',
 			closable : isPrivate ? true : false,
 			layout : 'fit',
+			listeners : {
+				close : function(panel) {
+					messagePanel.onClose(panel);
+				}
+			},
 			items : [{
 				title : isPrivate ? (escapedUserName + ' : ' + escapedHost + '(' + escapedAddr + ')' + ' とのプライベート板') : null,
 				layout : 'border',
@@ -440,7 +454,7 @@ var MessagePanel = Ext.extend(Ext.Panel, {
 										var text = Ext.getCmp(msgName);
 										var msg = text.getValue();
 										if (msg != null && msg.length > 0) {
-											sendMessage({
+											messagePanel.sendMessage({
 													msgTarget : isPrivate ? user.id : null,
 													isReply : false,
 													effect : effect,
@@ -620,6 +634,95 @@ var MessagePanel = Ext.extend(Ext.Panel, {
 		console.log(panelConfig);
 
 		MessagePanel.superclass.constructor.call(this, panelConfig);
+	}
+});
+
+// ダイレクト通信で使用
+var DirectMessagePanel = Ext.extend(MessagePanel, {
+	myUser : null,
+	targetUser : null,
+	peerConnection : null,
+	dataChannel : null,
+	connected : true,
+
+	sendMessage : function(data, noEncryptedData) {
+		if (!this.connected) {
+			Ext.MessageBox.alert('エラー', 'ダイレクト通信の接続が切れています。');
+			return;
+		}
+		var sendMsg = {
+			"data": {
+				'msgTarget' : data.msgTarget,
+				'isPrivate' : (data.msgTarget != null && '' != data.msgTarget),
+				'useReadNotification' : false, //TODO 対応
+				// 'useReadNotification' : (data.useReadNotification != null ? data.useReadNotification : false),
+				'time' : new Date().getTime(),
+				'id' : this.myUser.id,
+				'name' : this.myUser.name,
+				'host' : this.myUser.host,
+				'addr' : this.myUser.addr,
+				'effect' : data.effect,
+				'color' : data.color,
+				'msg' : data.msg,
+				'imageData' : false, //TODO
+				// 'imageData' : (noEncryptedData != null && noEncryptedData.imageData != null),
+				'favorite' : null
+			},
+			"noEncryptedData" : null //TODO データサイズが大きいと一度に送れない
+			// "noEncryptedData" : noEncryptedData
+		};
+		// console.log(sendMsg);
+
+		this.dataChannel.send(JSON.stringify(sendMsg));
+		this.onMessage(sendMsg);
+	},
+
+	onMessage : function(msg) {
+		handleMessage(this.myUser.id, msg.data, msg.noEncryptedData);
+	},
+
+	onClose : function(panel) {
+		this.connected = false;
+		if (this.dataChannel != null) {
+			this.dataChannel.close();
+			this.dataChannel = null;
+		}
+		if (this.peerConnection != null) {
+			this.peerConnection.close();
+			this.peerConnection = null;
+		}
+	},
+
+	constructor: function(targetUser, myUser, peerConnection, dataChannel) {
+		var self = this;
+		self.targetUser = targetUser;
+		self.myUser = myUser;
+		self.peerConnection = peerConnection;
+		self.dataChannel = dataChannel;
+
+		dataChannel.onerror = function (error) {
+			console.log("onerror:"+ error);
+			console.log(error);
+		};
+
+		dataChannel.onclose = function (event) {
+			console.log("onclose");
+			if (self.connected) {
+				showDesktopPopup(
+					'通知 ('+Ext.util.Format.date(new Date(),'Y/m/d H:i:s')+')',
+					self.targetUser.name + ' とのダイレクト通信の接続が切れました。',
+					-1);
+			}
+			self.connected = false;
+		};
+
+		dataChannel.onmessage = function (event) {
+			var msg = JSON.parse(event.data);
+			// console.log(msg);
+			self.onMessage(msg);
+		};
+
+		DirectMessagePanel.superclass.constructor.call(this, targetUser);
 	}
 });
 
@@ -1006,6 +1109,471 @@ Ext.onReady(function() {
 					}
 				});
 			})(),
+			'-',
+			{
+				text : 'ダイレクト通信',
+				listeners : {
+					click : (function() {
+
+						var peerConnection = null;
+						var dataChannel = null;
+						var myICE = [];
+						var myUser = null;
+						var directRequest = null;
+						var directResponse = null;
+						var channelOpened = false;
+
+						function channelSetup() {
+							dataChannel.onerror = function (error) {
+								console.log("onerror:"+ error);
+								console.log(error);
+							};
+
+							dataChannel.onmessage = function (event) {
+								dataChannel.onmessage = function(){};
+								console.log("onmessage:"+ event.data);
+								console.log(event);
+
+								var user = JSON.parse(event.data);
+								var tabPanel = Ext.getCmp('tabPanel');
+								var escapedUserID = Ext.util.Format.htmlEncode(user.id);
+								if (Ext.getCmp('PrivateTab_' + escapedUserID) == null) {
+									console.log('open new tab : ' + JSON.stringify(user));
+									tabPanel.add(new DirectMessagePanel(user, myUser, peerConnection, dataChannel));
+									tabPanel.doLayout();
+								}
+								tabPanel.setActiveTab('PrivateTab_' + escapedUserID);
+
+								channelOpened = true;
+								peerConnection = null;
+								dataChannel = null;
+							};
+
+							dataChannel.onopen = function (event) {
+								console.log("onopen");
+								console.log(event);
+
+								//ICEを解析し、自IPアドレスを取得
+								var ipAddress = (function() {
+									var s = '-';
+									myICE.forEach(function(ice) {
+										var candidate = '' + ice.candidate;
+										if (/ tcp /.test(candidate) == false) {
+											return;
+										}
+										var match = candidate.match(/ ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}) /);
+										if (match != null) {
+											s = match[1];
+										}
+									});
+									return s;
+								})();
+
+								myUser = {
+									id : 'direct_' + Math.random().toString(36).substring(2), //dummy値
+									name : myName + ' <ダイレクト通信>',
+									state : '-',
+									host : ipAddress,
+									addr : ipAddress,
+									loginDate : new Date().getTime(),
+									userAgent : navigator.userAgent
+								};
+								dataChannel.send(JSON.stringify(myUser));
+							};
+
+							dataChannel.onclose = function (event) {
+								console.log("onclose");
+								console.log(event);
+								channelOpened = false;
+							};
+						}
+
+						var cardPanel = null;
+						var win = new Ext.Window({
+							width : 500,
+							height : 350,
+							buttonAlign : 'center',
+							closable : true,
+							closeAction : 'hide',
+							initHidden : true,
+							hideMode : 'visibility',
+							layout : 'fit',
+							modal : false,
+							resizable : true,
+							title : 'ダイレクト通信セットアップ',
+							listeners : {
+								hide : function() {
+									if (dataChannel != null) {
+										dataChannel.close();
+										dataChannel = null;
+									}
+									if (peerConnection != null) {
+										peerConnection.close();
+										peerConnection = null;
+									}
+								},
+								show : function() {
+									cardPanel.getLayout().setActiveItem(0);
+
+									peerConnection = 
+										new (window.RTCPeerConnection || window.webkitRTCPeerConnection || window.mozRTCPeerConnection)(null);
+									console.log(peerConnection);
+									dataChannel = null;
+									myICE = [];
+									directRequest = null;
+									directResponse = null;
+									channelOpened = false;
+
+									peerConnection.onicecandidate = function(event) {
+										console.log('peerConnection.onicecandidate');
+										console.log(event);
+										if (event.candidate) {
+											console.log(event.candidate);
+											myICE.push(event.candidate)
+										}
+									};
+									peerConnection.ondatachannel = function(event) {
+										console.log('peerConnection.ondatachannel');
+										console.log(event);
+										dataChannel = event.channel;
+										console.log(dataChannel);
+										channelSetup();
+									};
+								}
+							},
+							items : [{
+								layout:'card',
+								activeItem: 0,
+								// layoutOnCardChange : true,
+								defaults: {
+									autoScroll : true,
+									border: false,
+									layout : 'vbox',
+									layoutConfig : {
+										defaultMargins : {top:10, right:0, bottom:0, left:0}
+									}
+								},
+								listeners : {
+									render : function(panel) {
+										cardPanel = panel;
+									}
+								},
+								items : [{
+									// item 0
+									defaults: {
+										border: false,
+										buttonAlign : 'center'
+									},
+									padding : '0px 10px 0px 10px',
+									items: [{
+										margins : {top:30, right:0, bottom:0, left:0},
+										html : 'ダイレクト通信は、サーバを使用せず相手と１対１の直接通信を行います。'
+									}, {
+										margins : {top:15, right:0, bottom:0, left:0},
+										buttons : [{
+											text : '通信相手を招待する',
+											width : 250, height : 50,
+											handler : function() { cardPanel.getLayout().setActiveItem(1); }
+										}]
+									}, {
+										margins : {top:15, right:0, bottom:0, left:0},
+										buttons : [{
+											text : '招待された相手と通信する',
+											width : 250, height : 50,
+											handler : function() { cardPanel.getLayout().setActiveItem(3); }
+										}]
+									}]
+								}, (function() {
+									// item 1
+									var textArea = null;
+									return {
+										defaults: {
+											border: false
+										},
+										padding : '0px 10px 0px 10px',
+										listeners : {
+											activate: function (panel) {
+												textArea.setValue('');
+												dataChannel = peerConnection.createDataChannel("WsChat_Direct_"+new Date().getTime());
+												console.log(dataChannel);
+												channelSetup();
+												peerConnection.createOffer(function(offer) {
+													console.log(offer);
+													peerConnection.setLocalDescription(offer);
+
+													var count = 0;
+													function waitICE() {
+														if (peerConnection.iceGatheringState != 'complete') {
+															if (count++ > 6) {
+																Ext.MessageBox.alert('エラー', '接続情報の生成に失敗しました。');
+															} else {
+																setTimeout(waitICE, 500);
+															}
+															return;
+														}
+														directRequest = {
+															"offer" : offer,
+															"ice" : myICE
+														};
+														console.log('directRequest');
+														console.log(directRequest);
+														textArea.setValue(btoa(JSON.stringify(directRequest)));
+														setTimeout(function() { textArea.selectText(); }, 0);
+													}
+													waitICE();
+												}, console.error);
+											}
+										},
+										items : [{
+											html : 'Step 1 of 2<br>以下の招待コードをコピーして、通信したい相手に伝えてください。<br>' +
+												'伝えたら「次へ」を押してください。'
+										}, {
+											xtype: 'fieldset',
+											title: '招待コード',
+											border : true,
+											items : [{
+												xtype : 'textarea',
+												width : 430, height : 130,
+												hideLabel : true,
+												readOnly : true,
+												listeners : {
+													render : function(self) {
+														textArea = self;
+													}
+												}
+											}]
+										}, {
+											buttons : [{
+												text : '次へ',
+												handler : function() { cardPanel.getLayout().setActiveItem(2); }
+											}]
+										}]
+									};
+								})(), (function() {
+									// item 2
+									var textArea = null;
+									return {
+										defaults: {
+											border: false
+										},
+										padding : '0px 10px 0px 10px',
+										listeners : {
+											activate: function (panel) {
+												textArea.setValue('');
+												textArea.focus();
+											}
+										},
+										items : [{
+											html : 'Step 2 of 2<br>相手から応答コードを受け取り、以下に張り付けてください。<br>' +
+												'(応答コードを受け取るまで、このウィンドウは閉じないでください)'
+										}, {
+											xtype: 'fieldset',
+											title: '応答コード',
+											border : true,
+											items : [{
+												xtype : 'textarea',
+												width : 430, height : 130,
+												hideLabel : true,
+												readOnly : false,
+												listeners : {
+													render : function(self) {
+														textArea = self;
+													}
+												}
+											}]
+										}, {
+											buttons : [{
+												text : '次へ',
+												handler : function() {
+													if (textArea.getValue() == '') { return; }
+													directResponse = JSON.parse(atob(textArea.getValue()));
+													var answer = new (window.RTCSessionDescription || window.mozRTCSessionDescription)(directResponse.answer);
+													console.log(answer);
+													peerConnection.setRemoteDescription(answer);
+
+													directResponse.ice.forEach(function(ice) {
+														var remoteIce = new (window.RTCIceCandidate || window.mozRTCIceCandidate)(ice);
+														console.log(remoteIce);
+														peerConnection.addIceCandidate(remoteIce);
+													});
+													cardPanel.getLayout().setActiveItem(5);
+												}
+											}]
+										}]
+									};
+								})(), (function() {
+									// item 3
+									var textArea = null;
+									return {
+										defaults: {
+											border: false
+										},
+										padding : '0px 10px 0px 10px',
+										listeners : {
+											activate: function (panel) {
+												textArea.setValue('');
+												textArea.focus();
+											}
+										},
+										items : [{
+											html : 'Step 1 of 2<br>相手から受け取った招待コードを、以下に張り付けてください。'
+										}, {
+											xtype: 'fieldset',
+											title: '招待コード',
+											border : true,
+											items : [{
+												xtype : 'textarea',
+												width : 440, height : 130,
+												hideLabel : true,
+												readOnly : false,
+												listeners : {
+													render : function(self) {
+														textArea = self;
+													}
+												}
+											}]
+										}, {
+											buttons : [{
+												text : '次へ',
+												handler : function() {
+													if (textArea.getValue() == '') { return; }
+
+													directRequest = JSON.parse(atob(textArea.getValue()));
+
+													var offer = new (window.RTCSessionDescription || window.mozRTCSessionDescription)(directRequest.offer);
+													console.log(offer);
+													peerConnection.setRemoteDescription(offer);
+
+													directRequest.ice.forEach(function(ice) {
+														var remoteIce = new (window.RTCIceCandidate || window.mozRTCIceCandidate)(ice);
+														console.log(remoteIce);
+														peerConnection.addIceCandidate(remoteIce);
+													});
+
+													peerConnection.createAnswer(function(desc) {
+														console.log(desc);
+														peerConnection.setLocalDescription(desc);
+
+														var count = 0;
+														function waitICE() {
+															if (peerConnection.iceGatheringState != 'complete') {
+																if (count++ > 6) {
+																	Ext.MessageBox.alert('エラー', '接続情報の生成に失敗しました。');
+																} else {
+																	setTimeout(waitICE, 500);
+																}
+																return;
+															}
+															directResponse = {
+																answer : desc,
+																ice : myICE
+															};
+															console.log('directResponse');
+															console.log(directResponse);
+															cardPanel.getLayout().setActiveItem(4);
+														}
+														waitICE();
+													}, console.error);
+												}
+											}]
+										}]
+									};
+								})(), (function() {
+									// item 4
+									var textArea = null;
+									return {
+										defaults: {
+											border: false
+										},
+										padding : '0px 10px 0px 10px',
+										listeners : {
+											activate: function (panel) {
+												textArea.setValue(btoa(JSON.stringify(directResponse)));
+												setTimeout(function() { textArea.selectText(); }, 0);
+											}
+										},
+										items : [{
+											html : 'Step 2 of 2<br>以下の応答コードをコピーして、通信したい相手に伝えてください。<br>' +
+												'伝えたら「次へ」を押してください。'
+										}, {
+											xtype: 'fieldset',
+											title: '応答コード',
+											border : true,
+											items : [{
+												xtype : 'textarea',
+												width : 440, height : 130,
+												hideLabel : true,
+												readOnly : true,
+												listeners : {
+													render : function(self) {
+														textArea = self;
+													}
+												}
+											}]
+										}, {
+											buttons : [{
+												text : '次へ',
+												handler : function() { cardPanel.getLayout().setActiveItem(5); }
+											}]
+										}]
+									};
+								})(), (function() {
+									// item 5
+									var loadMask = null;
+									return {
+										defaults: {
+											border: false
+										},
+										listeners : {
+											activate: function (panel) {
+												if (loadMask == null) {
+													loadMask = new Ext.LoadMask(panel.getEl(), { msg : "相手と接続中です。しばらくお待ちください..." });
+												}
+												loadMask.show();
+												function waitConnect() {
+													if (!channelOpened) {
+														setTimeout(waitConnect, 3000);
+														return;
+													}
+													cardPanel.getLayout().setActiveItem(6);
+												}
+												setTimeout(waitConnect, 1000);
+											}
+										},
+										items : []
+									};
+								})(), {
+									// item 6
+									defaults: {
+										border: false
+									},
+									padding : '0px 10px 0px 10px',
+									items : [{
+										html : '接続に成功しました。'
+									}, {
+										buttonAlign : 'left',
+										buttons : [{
+											text : '閉じる',
+											handler : function() { win.hide(); }
+										}]
+									}]
+								}]
+							}],
+							fbar : [{
+								text : 'キャンセル',
+								listeners : {
+									click : function() {
+										win.hide();
+									}
+								}
+							}]
+						});
+						return function() {
+							win.show();
+						};
+					})()
+				}
+			},
 			'->',
 			{
 				text : 'デスクトップ通知を許可',
@@ -1548,7 +2116,7 @@ var checkServer = (function() {
 				join();
 			},
 			failure: function(response, opts) {
-				if (messageBox == null || !messageBox.isVisible()) {
+				if (retryCount == 0 && (messageBox == null || !messageBox.isVisible())) {
 					messageBox = Ext.MessageBox.alert(
 				 	   '情報',
 				 	   'サーバが起動していないようです。<br />サーバ起動後、チャットは自動的に開始しますので、このままでお待ちください。'
@@ -1783,7 +2351,7 @@ function join() {
 	socket.on('message push', function(encryptedData, noEncryptedData, callbackFn) {
 		var data = common.decryptByAES(encryptedData, commonKey);
 		//console.log('callbackFn: '+fn);
-		handleMessage(data, noEncryptedData, callbackFn);
+		handleMessage(myID, data, noEncryptedData, callbackFn);
 	});
 	socket.on('message delete', function(str) {
 		var data = common.decryptByAES(str, commonKey);
@@ -1836,13 +2404,13 @@ function sendMessage(data, noEncryptData) {
 	socket.emit('message send', common.encryptByAES(data, commonKey), noEncryptData);
 }
 
-function handleMessage(data, noEncryptedData, callbackFn) {
+function handleMessage(myUserID, data, noEncryptedData, callbackFn) {
 	// console.log(data);
 	var tabID;
 	var msgPanel;
 	if (data.isPrivate) {
 		var openID = 
-			(data.msgTarget == myID) ? data.id : data.msgTarget;
+			(data.msgTarget == myUserID) ? data.id : data.msgTarget;
 		var escapedOpenID = Ext.util.Format.htmlEncode(openID);
 		tabID = 'PrivateTab_' + escapedOpenID;
 		msgPanel = Ext.getCmp('PrivateView_' + escapedOpenID);
@@ -1858,7 +2426,7 @@ function handleMessage(data, noEncryptedData, callbackFn) {
 		msgPanel = Ext.getCmp('MainView');
 	}
 	msgAdd(msgPanel, data, noEncryptedData);
-	if (data.id != myID) {
+	if (data.id != myUserID) {
 		if (data.isPrivate && callbackFn != null) {
 			callbackFn('private message catched.');
 		}
