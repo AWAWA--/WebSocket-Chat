@@ -2111,6 +2111,10 @@ var checkServer = (function() {
 						'通知 ('+Ext.util.Format.date(new Date(),'Y/m/d H:i:s')+')',
 						'サーバが起動しました。開始します。',
 						-1);
+					if (global.applicationCache != null && global.applicationCache.status == global.applicationCache.IDLE) {
+						//アプリケーションの更新確認
+						global.applicationCache.update();
+					}
 					retryCount = 0;
 				}
 				join();
