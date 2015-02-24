@@ -9,6 +9,7 @@ var server = {
 var userData = {
 	id : 'Jenkins_Bot_' + new Date().getTime(),
 	name : 'Jenkins_Bot',
+	state : '-',
 	host : '^',
 	addr : 'o_o',
 	loginDate : new Date().getTime(),

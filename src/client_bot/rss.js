@@ -11,6 +11,7 @@ var server = {
 var userData = {
 	id : 'RSS_Bot' + new Date().getTime(),
 	name : 'RSS_Bot',
+	state : '-',
 	host : '-',
 	addr : '-',
 	loginDate : new Date().getTime(),
@@ -46,21 +47,21 @@ var RSS_ITEMS = [
 		// 		return title + ' ' + link;			
 		// 	}
 		// }
-		, checkInterval : 30 * 60 * 1000
+		, checkInterval : 10 * 60 * 1000
 	},
 	{
-		title:'地震速報@tenki.jp'
-		, url:'http://feed.tenki.jp/component/static_api/rss/earthquake/recent_entries_by_day.xml'
-		, filter: function(item) {
-			var maxLevel = 0;
-			item.children().each(function(index, elem) {
-				if (elem.name != 'tenkiJP:earthquake') { return; }
-				var maxLevelAttr = $(this).attr('max_level');
-				// util.log('maxLevel=' + maxLevelAttr);
-				maxLevel = parseInt(maxLevelAttr);
-			});
-			return maxLevel >= 3;
-		}
+		title:'地震情報@goo'
+		, url:'http://weather.goo.ne.jp/earthquake/index.rdf'
+		// , filter: function(item) {
+		// 	var maxLevel = 0;
+		// 	item.children().each(function(index, elem) {
+		// 		if (elem.name != 'tenkiJP:earthquake') { return; }
+		// 		var maxLevelAttr = $(this).attr('max_level');
+		// 		// util.log('maxLevel=' + maxLevelAttr);
+		// 		maxLevel = parseInt(maxLevelAttr);
+		// 	});
+		// 	return maxLevel >= 3;
+		// }
 		// , checkInterval : 1 * 60 * 1000
 	}
 ];
@@ -80,7 +81,7 @@ RSS_ITEMS.forEach(function(RSS_ITEM, rssIndex) {
 		return title + ' ' + link;
 	};
 	var rssCheckInterval = (RSS_ITEM.checkInterval != null) ? RSS_ITEM.checkInterval : DEFAULT_CHECK_INTERVAL;
-	var rssCheckDelay = (1*60*1000) + (1*60*1000*rssIndex);
+	var rssCheckDelay = (30*1000) + (30*1000*rssIndex);
 
 	util.log(rssTitle+' '+rssURL+' '+rssCheckInterval + ' ' + rssCheckDelay);
 
@@ -88,19 +89,46 @@ RSS_ITEMS.forEach(function(RSS_ITEM, rssIndex) {
 	var host = parsedURL.host;
 	var port = parsedURL.port;
 	var path = parsedURL.path;
-	var lastItemPubDate = new Date();
-	// var lastItemPubDate = new Date(new Date().getTime()-(3*60*60*1000));
+	// var lastItemPubDate = new Date();
+	var lastItemPubDate = new Date(new Date().getTime()-(30*60*1000));
+
+	var eTag = null;
+	var lastAccessDate = null;
 
 	function getRss() {
 
-		http.get({host: host,　port: port,　path: path,　method: 'GET'}, function(res) {
+		var nextInterval = Math.floor(rssCheckInterval + (30*1000*Math.random()) - (30*1000*Math.random()));
+		// util.log('nextInterval: '+nextInterval);
+
+		var requestHeader = {};
+		if (eTag != null) {
+			requestHeader['If-None-Match'] = eTag;
+		}
+		if (lastAccessDate != null) {
+			requestHeader['If-Modified-Since'] = lastAccessDate;
+		}
+		// util.log('requestHeader: ' + JSON.stringify(requestHeader));
+
+		http.get({host: host,　port: port,　path: path,　method: 'GET', headers: requestHeader}, function(res) {
 			// util.log(rssURL + ' : ' + res.statusCode);
 			// util.log('HEADERS: ' + JSON.stringify(res.headers));
-			if (res.statusCode != 200) {
+
+			if (res.headers['etag'] != null) {
+				eTag = res.headers['etag'];
+			}
+			if (res.headers['last-modified'] != null) {
+				lastAccessDate = res.headers['last-modified'];
+			}
+
+			if (res.statusCode == 304) {
+				setTimeout(getRss, nextInterval);
+				return;
+			} else if (res.statusCode >= 400) {
 				util.log('GET ERROR: '+rssTitle+' statusCode='+res.statusCode);
-				setTimeout(getRss, rssCheckInterval);
+				setTimeout(getRss, nextInterval);
 				return;
 			}
+
 			res.setEncoding('utf8');
 			var data = '';
 			res.on('data', function (chunk) {
@@ -146,11 +174,11 @@ RSS_ITEMS.forEach(function(RSS_ITEM, rssIndex) {
 					}
 				} catch (e) { util.log('ERROR: '+rssTitle+' '+e); }
 
-				setTimeout(getRss, rssCheckInterval);
+				setTimeout(getRss, nextInterval);
 			});
 		}).on('error', function(e) {
 			util.log('GET ERROR: '+rssTitle+' '+e);
-			setTimeout(getRss, rssCheckInterval);
+			setTimeout(getRss, nextInterval);
 		});
 
 	};
