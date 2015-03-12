@@ -2329,6 +2329,7 @@ function join() {
 		var storeIndex = userStore.find('id', data.id);
 		if (storeIndex != -1) {
 			var record = userStore.getAt(storeIndex);
+			var oldState = record.get('state');
 			for (var i in data) {
 				if (i == 'id') { continue; }
 				record.set(i, data[i]);
@@ -2336,6 +2337,13 @@ function join() {
 			record.commit();
 			var row = Ext.getCmp('userGrid').getView().getRow(storeIndex);
 			Ext.fly(row).highlight();
+			if (record.get('id') != myID && config.notification_userAddDel) {
+				showDesktopPopup(
+					'ユーザ状態変更',
+					data.name + '： "' + oldState + '" → "' + data.state + '"',
+					config.notification_userAddDelTime
+				);
+			}
 		}
 	});
 	socket.on('user delete', function(str) {
@@ -2434,14 +2442,29 @@ function handleMessage(myUserID, data, noEncryptedData, callbackFn) {
 		if (data.isPrivate && callbackFn != null) {
 			callbackFn('private message catched.');
 		}
-		var forcePopup = (data.effect&(1<<3)) == (1<<3);
+		var forcePopup = (data.effect&(1<<3)) == (1<<3) || (function(msg) {
+			var lines = msg.split('\n');
+			if (lines.length == 1) { return false; }
+			var firstLine = lines[0];
+			if (/^[@＠>＞]/.test(msg) == false) { return false; }
+			firstLine = firstLine.substring(1).trim();
+			function containsMyName(splitter) {
+				var names = firstLine.split(splitter);
+				for (var i=0,l=names.length; i<l; i++) {
+					var name = names[i].trim();
+					if (name == myName || name == (myName+'さん')) { return true; }
+				}
+				return false;
+			}
+			return containsMyName(',') || containsMyName('、');
+		})(data.msg);
 		if (
 			(data.isPrivate && config.notification_privateMsg) ||
 			(!data.isPrivate && config.notification_publicMsg) ||
 			forcePopup
 		) {
 			showDesktopPopup(
-				data.name + ' からの' + (data.isPrivate ? 'プライベート' : '') + 'メッセージ',
+				data.name + ' からの' + (data.isPrivate ? 'プライベート' : '') + 'メッセージ' + (forcePopup ? '(*)' : ''),
 				data.useReadNotification ? '（開封確認メッセージ）' : data.msg,
 				forcePopup ? -1 : 
 					(data.isPrivate ?
