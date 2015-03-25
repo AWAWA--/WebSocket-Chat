@@ -2662,6 +2662,11 @@ var msgAdd = (function() {
 							var items = [];
 							items.push({
 								html : Ext.util.Format.htmlEncode(data.name) 
+									+ ((data.state == null) ? '' :
+										'('
+										+ Ext.util.Format.htmlEncode(data.state)
+										+ ')'
+									)
 									+ '&nbsp;'
 									+ Ext.util.Format.htmlEncode(data.host) 
 									+ '('

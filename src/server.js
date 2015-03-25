@@ -441,6 +441,7 @@ io.sockets.on('connection', function (socket) {
 					'time' : new Date().getTime(),
 					'id' : userData.id,
 					'name' : userData.name,
+					'state' : userData.state,
 					'host' : userData.host,
 					'addr' : userData.addr,
 					'effect' : data.effect,
