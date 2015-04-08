@@ -21,7 +21,31 @@
 		if (reg.test(search)) {
 			theme = search.match(reg)[1];
 		}
-		document.write('<link rel="stylesheet" type="text/css" href="extjs/resources/css/xtheme-'+theme+'.css"/>');
+		switch(theme) {
+			case 'blue':
+			document.write('<style>');
+			document.write('.clipButton_on{ background-position:-15px -135px; background-image:url(extjs/resources/images/default/panel/tools-sprites-trans.gif); }');
+			document.write('.clipButton_off{ background-position:0px -135px; background-image:url(extjs/resources/images/default/panel/tools-sprites-trans.gif); }');
+			document.write('</style>');
+			document.write('<link rel="stylesheet" type="text/css" href="extjs/resources/css/xtheme-blue.css"/>');
+			break;
+
+			case 'gray':
+			document.write('<style>');
+			document.write('.clipButton_on{ background-position:-15px -135px; background-image:url(extjs/resources/images/gray/panel/tools-sprites-trans.gif); }');
+			document.write('.clipButton_off{ background-position:0px -135px; background-image:url(extjs/resources/images/gray/panel/tools-sprites-trans.gif); }');
+			document.write('</style>');
+			document.write('<link rel="stylesheet" type="text/css" href="extjs/resources/css/xtheme-gray.css"/>');
+			break;
+
+			case 'access':
+			document.write('<style>');
+			document.write('.clipButton_on{ background-position:-15px -135px; background-image:url(extjs/resources/images/access/panel/tools-sprites-trans.gif); }');
+			document.write('.clipButton_off{ background-position:0px -135px; background-image:url(extjs/resources/images/access/panel/tools-sprites-trans.gif); }');
+			document.write('</style>');
+			document.write('<link rel="stylesheet" type="text/css" href="extjs/resources/css/xtheme-access.css"/>');
+			break;
+		}
 	</script>
 
 	<script type="text/javascript" src="extjs/adapter/ext/ext-base.js"></script> 

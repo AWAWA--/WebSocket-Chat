@@ -402,7 +402,7 @@ io.sockets.on('connection', function (socket) {
 				})()
 			});
 
-			var PUSH_SIZE = 100;
+			var PUSH_SIZE = 999;
 			var msgList = msgQueue.getAll();
 			for (var i=0,l=msgList.length; i<l; i=i+PUSH_SIZE) {
 				var sendList = msgList.slice(i, i+PUSH_SIZE);
