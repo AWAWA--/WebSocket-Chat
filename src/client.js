@@ -2061,24 +2061,26 @@ Ext.onReady(function() {
 
 	//データベースのセットアップ
 	new Promise(function(resolve, reject) {
-		var request = global.indexedDB.open('ws_chat', 2);
-		request.onupgradeneeded = function() {
+		var request = global.indexedDB.open('ws_chat', 7);
+		request.onupgradeneeded = function(event) {
 			var db = request.result;
-			try {
-				db.createObjectStore('publicMsg', {keyPath: 'time'});
-				db.createObjectStore('privateMsg', {keyPath: 'time'});
-			} catch(e) { console.log(e); }
+			var storeNames = db.objectStoreNames;
+			if (!storeNames.contains('publicMsg')) {
+				var store = db.createObjectStore('publicMsg', {keyPath: 'time'});
+				console.log(store);
+			}
+			if (!storeNames.contains('privateMsg')) {
+				var store = db.createObjectStore('privateMsg', {keyPath: 'time'});
+				console.log(store);
+			}
+		};
+		request.onsuccess = function(event) {
+			var db = request.result;
 			wsChatDB = db;
 			console.log(wsChatDB);
 			resolve();
 		};
-		request.onsuccess = function() {
-			var db = request.result;
-			wsChatDB = db;
-			console.log(wsChatDB);
-			resolve();
-		};
-		request.onerror = function() {
+		request.onerror = function(event) {
 			console.log('indexedDB open error');
 			console.log(arguments);
 			reject(request.error);
@@ -2390,7 +2392,7 @@ function join() {
 
 			for (var i=0,l=mergedList.length;i<l;i++) {
 				// console.log('msdAdd start');
-				msgAdd(msgTab, mergedList[i], null, !(l-i>1));
+				msgAdd(msgTab, mergedList[i], !(l-i>1));
 				// console.log('msdAdd end');
 			}
 			if (!data.hasMore) {
@@ -2473,22 +2475,26 @@ function join() {
 		// console.log(data);
 		for (var i=0,l=targetItems.length; i<l; i++) {
 			var targetItem = targetItems.get(i);
+			var targetItemData = targetItem.initialConfig.data;
 			// console.log(targetItem.initialConfig.data);
 			var equals = true;
 			for (var prop in data) {
-				if (data[prop] != targetItem.initialConfig.data[prop]) {
+				if (data[prop] != targetItemData[prop]) {
 					equals = false;
 					break;
 				}
 			}
-			if (equals) { removeList.push(targetItem); }
+			if (equals) {
+				removeList.push(targetItem);
+				targetItemData.favorite = false; //お気に入りを外すことで、データベースからも削除する
+			}
 		}
 		for (var i=0,l=removeList.length; i<l; i++) {
-			(function(msgPanel) {
-				msgPanel.getEl().slideOut('r', {
+			(function(targetItem) {
+				targetItem.getEl().slideOut('r', {
 					duration: 0.5,
 					callback : function() {
-						targetPanel.remove(msgPanel, true);
+						targetPanel.remove(targetItem, true);
 					}
 				});
 			})(removeList[i]);
@@ -2537,7 +2543,10 @@ function handleMessage(myUserID, data, noEncryptedData, callbackFn) {
 		tabID = 'MainTab';
 		msgPanel = Ext.getCmp('MainView');
 	}
-	msgAdd(msgPanel, data, noEncryptedData);
+	if (noEncryptedData != null) {
+		data = Ext.apply(data, noEncryptedData); //画像データをマージ
+	}
+	msgAdd(msgPanel, data);
 	if (data.id != myUserID) {
 		if (data.isPrivate && callbackFn != null) {
 			callbackFn('private message catched.');
@@ -2647,7 +2656,7 @@ var msgAdd = (function() {
 	});
 	// imageViewWin.show();
 	// imageViewWin.hide();
-	return function(targetPanel, data, noEncryptedData, doLayout) {
+	return function(targetPanel, data, doLayout) {
 		if (doLayout == null) { doLayout = true; }
 		var headerDefaultStyle = {
 			marginRight : '10px',
@@ -2681,17 +2690,7 @@ var msgAdd = (function() {
 		msgPanel = new Ext.Panel({
 			autoWidth : true,
 			autoHeight : true,
-			// width : 350,
-			// height : 150,
-			// boxMinWidth : 300,
-			// bodyStyle : {
-			// 	height : '2em'
-			// },
 			padding : 5,
-			// layout : 'table',
-			// layoutConfig : {
-			// 	columns : 1
-			// },
 			data : data,
 			listeners : {
 				adjustSpacer : function() {
@@ -2702,148 +2701,148 @@ var msgAdd = (function() {
 			[{
 				layout : 'column',
 				border : false,
-				items : [{
-					border : false,
-					columnWidth: 1,
-					listeners : {
-						afterrender : function(self, width, height) {
-							setTimeout(adjustSpacer, 0);
-						}
-					},
-					items : [{
-						autoWidth : true,
-						autoHeight : true,
-						// height : 50,
-						layout : 'hbox',
-						// layoutConfig : {
-						// 	align : 'stretch'
-						// },
+				items : (function() {
+					var items = [];
+					items.push(
+					{
 						border : false,
-						// bodyStyle : {
-						// 	height : '1em'
-						// },
-						defaults:{
-							border : false,
-							bodyStyle : headerDefaultStyle
-						},
+						columnWidth: 1,
 						listeners : {
-							render : function(self) {
-								headerId = self.getId();
+							afterrender : function(self, width, height) {
+								setTimeout(adjustSpacer, 0);
 							}
 						},
-						items : (function() {
-							var items = [];
-							items.push({
-								html : Ext.util.Format.htmlEncode(data.name) 
-									+ ((data.state == null) ? '' :
-										'('
-										+ Ext.util.Format.htmlEncode(data.state)
-										+ ')'
-									)
-									+ '&nbsp;'
-									+ Ext.util.Format.htmlEncode(data.host) 
-									+ '('
-									+ Ext.util.Format.htmlEncode(data.addr)
-									+ ')'
-							});
-							items.push({
-								html : '&nbsp;',
-								listeners : {
-									render : function(self) {
-										spacerId = self.getId();
-									}
+						items : [{
+							autoWidth : true,
+							autoHeight : true,
+							// height : 50,
+							layout : 'hbox',
+							// layoutConfig : {
+							// 	align : 'stretch'
+							// },
+							border : false,
+							// bodyStyle : {
+							// 	height : '1em'
+							// },
+							defaults:{
+								border : false,
+								bodyStyle : headerDefaultStyle
+							},
+							listeners : {
+								render : function(self) {
+									headerId = self.getId();
 								}
-							});
-							// items.push({
-							// 	xtype : 'spacer',
-							// 	flex: 1,
-							// });
-							items.push({
-								html : Ext.util.Format.htmlEncode(
-										Ext.util.Format.date(new Date(data.time),'Y/m/d')
-									) 
-									+ '&nbsp;'
-									+ Ext.util.Format.htmlEncode(
-										Ext.util.Format.date(new Date(data.time),'H:i:s')
-									) 
-							});
-							if (data.isPrivate &&
-									data.msgTarget != myID && 
-									data.useReadNotification &&
-									targetPanel.getId() != 'PrivateMsgLogView') {
+							},
+							items : (function() {
+								var items = [];
 								items.push({
-									id : 'unreadLabel_' + Ext.util.Format.htmlEncode(data.msgTarget) + '_' + data.time,
-									bodyStyle : Ext.applyIf({color : 'red'}, headerDefaultStyle),
-									html : '(未読)',
+									html : Ext.util.Format.htmlEncode(data.name) 
+										+ ((data.state == null) ? '' :
+											'('
+											+ Ext.util.Format.htmlEncode(data.state)
+											+ ')'
+										)
+										+ '&nbsp;'
+										+ Ext.util.Format.htmlEncode(data.host) 
+										+ '('
+										+ Ext.util.Format.htmlEncode(data.addr)
+										+ ')'
+								});
+								items.push({
+									html : '&nbsp;',
 									listeners : {
-										destroy : function(self) {
-											// msgPanel.doLayout();
-											adjustSpacer();
+										render : function(self) {
+											spacerId = self.getId();
 										}
 									}
 								});
-							}
-							return items;
-						})()
-					}]
-				}, {
-					autoWidth : true,
-					autoHeight : true,
-					border : false,
-					items : (function() {
-						var items = [];
-						if (data.id == myID　&& !data.isPrivate) {
-							items.push({
-								xtype : 'button',
-								text : '削除',
-								listeners : {
-									click : function() {
-										socket.emit('message delete', common.encryptByAES({
-										   	'time' : data.time
-										}, commonKey));
-									}
-								}
-							});
-						}
-						if (targetPanel.getId() == 'MainView' || targetPanel.getId() == 'PrivateMsgLogView') {
-							items.push({
-								xtype : 'panel',
-								html : ' ',
-								border : false,
-								width : 15,
-								height : 15,
-								bodyCssClass : !!data.favorite ? 'clipButton_on' : 'clipButton_off',
-								bodyStyle : { cursor : 'pointer'},
-								listeners : (function() {
-									var tip;
-									return {
-										render : function(owner) {
-											tip = new Ext.ToolTip({
-												target: owner.getEl(),
-												bodyStyle : { whiteSpace : 'nowrap' },
-												html: '',
-												listeners : {
-													show : function() {
-														tip.update(!data.favorite ? 'このメッセージをピン留めする' : 'このメッセージのピン留めを外す');
-														tip.doLayout();
-													}													
-												}
-											});
-
-											owner.getEl().addListener('click', function() {
-												data.favorite = !data.favorite;
-												owner.body.removeClass('clipButton_on');
-												owner.body.removeClass('clipButton_off');
-												owner.body.addClass(!!data.favorite ? 'clipButton_on' : 'clipButton_off');
-											});
+								// items.push({
+								// 	xtype : 'spacer',
+								// 	flex: 1,
+								// });
+								items.push({
+									html : Ext.util.Format.htmlEncode(
+											Ext.util.Format.date(new Date(data.time),'Y/m/d')
+										) 
+										+ '&nbsp;'
+										+ Ext.util.Format.htmlEncode(
+											Ext.util.Format.date(new Date(data.time),'H:i:s')
+										) 
+								});
+								if (data.isPrivate &&
+										data.msgTarget != myID && 
+										data.useReadNotification &&
+										targetPanel.getId() != 'PrivateMsgLogView') {
+									items.push({
+										id : 'unreadLabel_' + Ext.util.Format.htmlEncode(data.msgTarget) + '_' + data.time,
+										bodyStyle : Ext.applyIf({color : 'red'}, headerDefaultStyle),
+										html : '(未読)',
+										listeners : {
+											destroy : function(self) {
+												// msgPanel.doLayout();
+												adjustSpacer();
+											}
 										}
-									};
-								})()
-							});
-						}
-						return items;
-					})()
-				}]
+									});
+								}
+								return items;
+							})()
+						}]
+					});
+
+					if (data.id == myID　&& !data.isPrivate) {
+						items.push({
+							xtype : 'button',
+							text : '削除',
+							listeners : {
+								click : function() {
+									socket.emit('message delete', common.encryptByAES({
+									   	'time' : data.time
+									}, commonKey));
+								}
+							}
+						});
+					}
+
+					if (targetPanel.getId() == 'MainView' || targetPanel.getId() == 'PrivateMsgLogView') {
+						items.push({
+							xtype : 'panel',
+							html : ' ',
+							border : false,
+							width : 15,
+							height : 15,
+							bodyCssClass : !!data.favorite ? 'clipButton_on' : 'clipButton_off',
+							bodyStyle : { cursor : 'pointer'},
+							listeners : (function() {
+								var tip;
+								return {
+									render : function(owner) {
+										tip = new Ext.ToolTip({
+											target: owner.getEl(),
+											bodyStyle : { whiteSpace : 'nowrap' },
+											html: '',
+											listeners : {
+												show : function() {
+													tip.update(!data.favorite ? 'このメッセージをピン留めする' : 'このメッセージのピン留めを外す');
+													tip.doLayout();
+												}													
+											}
+										});
+
+										owner.getEl().addListener('click', function() {
+											data.favorite = !data.favorite;
+											owner.body.removeClass('clipButton_on');
+											owner.body.removeClass('clipButton_off');
+											owner.body.addClass(!!data.favorite ? 'clipButton_on' : 'clipButton_off');
+										});
+									}
+								};
+							})()
+						});
+					}
+					return items;
+				})()
+
 			}, {
 				autoWidth : true,
 				autoHeight : true,
@@ -2984,25 +2983,29 @@ var msgAdd = (function() {
 							return str;
 						})()
 					});
-					if (data.imageData && noEncryptedData != null && noEncryptedData.imageData != null) {
-						var width = Math.min(noEncryptedData.imageWidth, 128);
+					if (typeof(data.imageData) == 'string') {
+						var width = Math.min(data.imageWidth, 128);
 						items.push({
 							id : msgImageID,
 							hidden : (isShowOpenButton),
 							border : true,
 							width : width,
 							html : '<img style="max-width:'+width+'px;cursor:pointer;"' +
-								' src="'+noEncryptedData.imageData+'" />',
+								' src="'+data.imageData+'" />',
 							listeners : {
 								render : function(panel) {
 									panel.body.on('click', function() {
-										imageDef = noEncryptedData;
+										imageDef = {
+											imageData : data.imageData,
+											imageWidth : data.imageWidth,
+											imageHeight : data.imageHeight
+										};
 										imageViewWin.show();
 									});
 								}
 							}
 						});
-					} else if (data.imageData) {
+					} else if (data.imageData === true) {
 						items.push({
 							id : msgImageID,
 							hidden : (isShowOpenButton),
