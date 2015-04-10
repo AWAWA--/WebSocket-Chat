@@ -2383,7 +2383,7 @@ function join() {
 			var lastID = null;
 			var lastTime = -1;
 			mergedList = mergedList.filter(function(msg) {
-				var contains = (lastID != msg.id && lastTime != msg.time);
+				var contains = !(lastID == msg.id && lastTime == msg.time);
 				lastID = msg.id;
 				lastTime = msg.time;
 				return contains;
