@@ -402,18 +402,11 @@ io.sockets.on('connection', function (socket) {
 				})()
 			});
 
-			var PUSH_SIZE = 999;
 			var msgList = msgQueue.getAll();
-			for (var i=0,l=msgList.length; i<l; i=i+PUSH_SIZE) {
-				var sendList = msgList.slice(i, i+PUSH_SIZE);
-				emit(socket, 'msg setup', { msgList : sendList, hasMore : (l-i>PUSH_SIZE) });
-			}
+			emit(socket, 'msg setup', { msgList : msgList, hasMore : false });
 
 			var figureList = figureQueue.getAll();
-			for (var i=0,l=figureList.length; i<l; i=i+PUSH_SIZE) {
-				var sendList = figureList.slice(i, i+PUSH_SIZE);
-				emit(socket, 'figure setup', { figureList : sendList, hasMore : (l-i>PUSH_SIZE) });
-			}
+			emit(socket, 'figure setup', { figureList : figureList, hasMore : false });
 
 			var reconnect = false;
 			if (data.reconnect) { reconnect = true; }

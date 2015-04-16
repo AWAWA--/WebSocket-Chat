@@ -3016,8 +3016,16 @@ var msgAdd = (function() {
 		});
 		if (doLayout) { msgPanel.doLayout(); }
 		//_msgPanel = msgPanel;
-		if (targetPanel.items.length > 999) {
-			targetPanel.remove(targetPanel.items.get(targetPanel.items.length-1), true);
+		if (targetPanel.items.length > 0xFF) {
+			var items = targetPanel.items;
+			for (var i=items.getCount()-1; i>=0; i--) {
+				var item = items.itemAt(i);
+				var itemData = item.initialConfig.data;
+				if (itemData.favorite !== true) {
+					targetPanel.remove(item, true);
+					break;
+				}
+			}
 		}
 
 		if (sort) {
