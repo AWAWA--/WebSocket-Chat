@@ -3028,9 +3028,10 @@ var msgAdd = (function() {
 			}
 		}
 
-		if (sort) {
-			var items = targetPanel.items;
-			for (var i=0,l=items.getCount(); i<l; i++) {
+		var items = targetPanel.items;
+		var itemsCount = items.getCount();
+		if (sort && itemsCount > 0) {
+			for (var i=0,l=itemsCount; i<l; i++) {
 				var itemData = items.itemAt(i).initialConfig.data;
 				if (data.time > itemData.time) {
 					targetPanel.insert(i, msgPanel);
@@ -3039,7 +3040,7 @@ var msgAdd = (function() {
 					//保存済みデータが既に表示済みの場合は、追加しない
 					break;
 				} else if (i == (l-1)) {
-					targetPanel.insert(i, msgPanel);
+					targetPanel.insert(i+1, msgPanel);
 					break;
 				}
 			}
