@@ -2901,7 +2901,7 @@ var msgAdd = (function() {
 									/(https?\:\/\/(?:[a-zA-Z0-9\-\_\.\!\?\~\*\;\:\/\@\&\=\+\$\,\%\#\(\)\[\]\'\^\\]+(?=&gt;)|[a-zA-Z0-9\-\_\.\!\?\~\*\;\:\/\@\&\=\+\$\,\%\#\(\)\[\]\'\^\\]+))/g,
 									function() {
 										var url = arguments[1];
-										return '<a target="_blank" style="text-shadow: 1px 0px 1px white;" href="'+url+'">'+url+'</a>'
+										return '<a target="_blank" style="text-shadow: 1px 0px 1px white;" href="'+url+'">'+global.decodeURI(url)+'</a>'
 									}
 								],
 								[
@@ -2911,7 +2911,7 @@ var msgAdd = (function() {
 										var url = arguments[1];
 										var hrefUrl = url;
 										if (!Ext.isIE) {
-											hrefUrl = encodeURI(hrefUrl.replace(/\\/g, '/'));
+											hrefUrl = global.encodeURI(hrefUrl.replace(/\\/g, '/'));
 											hrefUrl = 'file:' + (hrefUrl.indexOf('/')==0 ? '' : '///') + hrefUrl;
 										}
 										return '&lt;<a target="_blank" style="text-shadow: 1px 0px 1px white;" href="'+hrefUrl+'">'+url+'</a>&gt;'
