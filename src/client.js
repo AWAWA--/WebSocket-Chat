@@ -1071,7 +1071,13 @@ Ext.onReady(function() {
 			(function() {
 				var store = new Ext.data.ArrayStore({
 				    fields: ['state'],
-				    data: [['在席'], ['離席中'], ['打合せ中'], ['外出中'], ['食事中']]
+				    data: (function() {
+				    	var list = [];
+				    	APP_CONFIG.USER_STATES.forEach(function(state) {
+				    		list.push([state]);
+				    	});
+				    	return list;
+				    })()
 				});
 				var enableEvent = true;
 				return new Ext.form.ComboBox({
@@ -2538,14 +2544,17 @@ function handleMessage(myUserID, data, noEncryptedData, callbackFn) {
 			callbackFn('private message catched.');
 		}
 		var forcePopup = (data.effect&(1<<3)) == (1<<3) || (function(msg) {
-			var matched = msg.match(/^[@＠>＞](.+)\s/);
+			var matched = msg.match(/^[@＠>＞](\S+)(\s.+)?/);
 			if (matched == null) { return false; }
 			var checkMsg = matched[1];
 			function containsMyName(splitter) {
 				var names = checkMsg.split(splitter);
 				for (var i=0,l=names.length; i<l; i++) {
 					var name = names[i].trim();
-					if (name == myName || name == (myName+'さん')) { return true; }
+					if (name == myName) { return true; }
+					for (var m=0,n=APP_CONFIG.HONORIFIC_TITLES.length; m<n; m++) {
+						if (name == (myName+APP_CONFIG.HONORIFIC_TITLES[m])) { return true; }
+					}
 				}
 				return false;
 			}
