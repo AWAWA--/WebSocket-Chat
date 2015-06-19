@@ -2538,13 +2538,11 @@ function handleMessage(myUserID, data, noEncryptedData, callbackFn) {
 			callbackFn('private message catched.');
 		}
 		var forcePopup = (data.effect&(1<<3)) == (1<<3) || (function(msg) {
-			var lines = msg.split('\n');
-			if (lines.length == 1) { return false; }
-			var firstLine = lines[0];
-			if (/^[@＠>＞]/.test(msg) == false) { return false; }
-			firstLine = firstLine.substring(1).trim();
+			var matched = msg.match(/^[@＠>＞](.+)\s/);
+			if (matched == null) { return false; }
+			var checkMsg = matched[1];
 			function containsMyName(splitter) {
-				var names = firstLine.split(splitter);
+				var names = checkMsg.split(splitter);
 				for (var i=0,l=names.length; i<l; i++) {
 					var name = names[i].trim();
 					if (name == myName || name == (myName+'さん')) { return true; }
