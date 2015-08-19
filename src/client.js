@@ -2574,10 +2574,29 @@ function handleMessage(myUserID, data, noEncryptedData, callbackFn) {
 						config.notification_publicMsgTime),
 				tabID,
 				function() {
-					if (!data.useReadNotification) { return; }
-					var readButton = Ext.getCmp('readButton_' + Ext.util.Format.htmlEncode(data.id) + '_' + data.time);
-					if (readButton != null && readButton.isVisible()) {
-						readButton.fireEvent('click', readButton);
+					//開封ボタンを押したことにする
+					if (data.useReadNotification) {
+						var readButton = Ext.getCmp('readButton_' + Ext.util.Format.htmlEncode(data.id) + '_' + data.time);
+						if (readButton != null && readButton.isVisible()) {
+							readButton.fireEvent('click', readButton);
+						}
+					}
+
+					//クリックされたメッセージ位置にフォーカスする
+					var targetMsg = null;
+					for (var i=0,l=msgPanel.items.length; i<l; i++) {
+						var msg = msgPanel.items.get(i);
+						if (msg.initialConfig.data == data) {
+							targetMsg = msg;
+							break;
+						}
+					}
+					if (targetMsg != null) {
+						var scrollVal = targetMsg.getPosition()[1] - msgPanel.getPosition()[1];
+						msgPanel.body.scroll(scrollVal > 0 ? 'down' : 'up', Math.abs(scrollVal), true);
+						setTimeout(function() {
+							targetMsg.getEl().frame();
+						}, 300);
 					}
 				}
 			);
