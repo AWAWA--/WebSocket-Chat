@@ -2908,12 +2908,16 @@ var msgAdd = (function() {
 									/(https?\:\/\/(?:[a-zA-Z0-9\-\_\.\!\?\~\*\;\:\/\@\&\=\+\$\,\%\#\(\)\[\]\'\^\\]+(?=&gt;)|[a-zA-Z0-9\-\_\.\!\?\~\*\;\:\/\@\&\=\+\$\,\%\#\(\)\[\]\'\^\\]+))/g,
 									function() {
 										var url = arguments[1];
-										return '<a target="_blank" style="text-shadow: 1px 0px 1px white;" href="'+url+'">'+global.decodeURI(url)+'</a>'
+										var decodedURL = url;
+										try {
+											decodedURL = global.decodeURI(decodedURL);
+										} catch(e) {}
+										return '<a target="_blank" style="text-shadow: 1px 0px 1px white;" href="'+url+'">'+decodedURL+'</a>'
 									}
 								],
 								[
-									/(&lt;(?:\\\\|[a-zA-Z]:\\).+?&gt;)/g,
-									/&lt;((?:\\\\|[a-zA-Z]:\\).+?)&gt;/g,
+									/((?:&lt;|&quot;)(?:\\\\|[a-zA-Z]:\\).+?(?:&gt;|&quot;))/g,
+									/(?:&lt;|&quot;)((?:\\\\|[a-zA-Z]:\\).+?)(?:&gt;|&quot;)/g,
 									function() {
 										var url = arguments[1];
 										var hrefUrl = url;
@@ -2921,7 +2925,9 @@ var msgAdd = (function() {
 											hrefUrl = global.encodeURI(hrefUrl.replace(/\\/g, '/'));
 											hrefUrl = 'file:' + (hrefUrl.indexOf('/')==0 ? '' : '///') + hrefUrl;
 										}
-										return '&lt;<a target="_blank" style="text-shadow: 1px 0px 1px white;" href="'+hrefUrl+'">'+url+'</a>&gt;'
+										var firstChar = arguments[0].indexOf('&lt;') == 0 ? '&lt;' : '&quot;';
+										var lastChar = arguments[0].lastIndexOf('&gt;') == arguments[0].length-4 ? '&gt;' : '&quot;';
+										return firstChar + '<a target="_blank" style="text-shadow: 1px 0px 1px white;" href="'+hrefUrl+'">'+url+'</a>' + lastChar;
 									}
 								]
 							];
