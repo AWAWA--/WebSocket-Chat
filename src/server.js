@@ -103,10 +103,17 @@ app.get('/ws_chat.html', function(req, res) {
 });
 
 app.get('/ws_chat.manifest', (function() {
+	var manifestFilePath = path.join(__dirname, 'ws_chat.manifest');
 	var manifestData = '';
 	var lastUpdateTime = 0;
 	var reg = /^(.+)\.manifest$/;
 	var eol = os.EOL;
+
+	if (fs.existsSync(manifestFilePath)) {
+		fs.unlinkSync(manifestFilePath);
+		// util.log(manifestFilePath+' deleted. '+fs.existsSync(manifestFilePath));
+	}
+
 	function write(str) {
 		manifestData += str;
 	}
@@ -141,23 +148,44 @@ app.get('/ws_chat.manifest', (function() {
 	write('NETWORK:' + eol);
 	write('*' + eol);
 	write(eol);
+	// util.log('lastUpdateTime:'+new Date(lastUpdateTime));
+
+	fs.writeFileSync(
+		manifestFilePath,
+		manifestData,
+		'utf8'
+	);
+	var stats = fs.statSync(manifestFilePath);
+	var fileCreatedTime = stats.mtime;
+
 	return function(req, res) {
 		// util.log(JSON.stringify(req.headers));
-		var ifModifiedSince = req.headers['if-modified-since'];
-		var lastUpdateGMTString = new Date(lastUpdateTime).toGMTString();
-		// util.log('ifModifiedSince:'+ifModifiedSince+' lastUpdateGMTString:'+lastUpdateGMTString);
-		if (ifModifiedSince != null && ifModifiedSince == lastUpdateGMTString) {
-			res.statusCode = 304;
-			res.end();
-			return;
-		}
-		res.writeHead(200, {
-			'Content-Type': 'text/cache-manifest',
-			'Last-Modified' : lastUpdateGMTString
+		fs.stat(manifestFilePath, function(err, stats) {
+			if (err) { util.log(err); return; }
+			var ifModifiedSince = req.headers['if-modified-since'];
+
+			//manifestファイルを作成後に手動で更新されていれば、そちらを最終更新時刻とみなす
+			var lastUpdateGMTString = stats.mtime.getTime() > fileCreatedTime.getTime() ?
+				stats.mtime.toGMTString() : new Date(lastUpdateTime).toGMTString();
+			// util.log('ifModifiedSince:'+ifModifiedSince+' lastUpdateGMTString:'+lastUpdateGMTString);
+
+			if (ifModifiedSince != null && ifModifiedSince == lastUpdateGMTString) {
+				res.statusCode = 304;
+				res.end();
+				return;
+			}
+
+			fs.readFile(manifestFilePath, 'utf8', function (err, data) {
+				if (err) { util.log(err); return; }
+				res.writeHead(200, {
+					'Content-Type': 'text/cache-manifest',
+					'Last-Modified' : lastUpdateGMTString
+				});
+	  			res.write(data);
+				res.write('#' + lastUpdateGMTString + eol);
+				res.end();
+			});
 		});
-		res.write(manifestData);
-		res.write('#' + lastUpdateGMTString + eol);
-		res.end();
 	};
 })());
 
