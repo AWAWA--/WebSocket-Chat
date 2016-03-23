@@ -69,17 +69,6 @@ if (!global.JSON) {
 if (!global.localStorage) {
 	global.localStorage = {};
 }
-if (!Object.observe && Object.watch) {
-	Object.observe = function(item, observer) {
-		for (var i in item) {
-			item.watch(i, function(id, oldVal, newVal) {
-				var newItem = Ext.apply({}, item);
-				newItem[i] = newVal;
-				observer([{ object: newItem, type: 'update', name: i, oldValue: oldVal }]);
-			});
-		}
-	};
-}
 
 if (global.applicationCache) {
 	var appCache = global.applicationCache;
@@ -2605,7 +2594,7 @@ function handleMessage(myUserID, data, noEncryptedData, callbackFn) {
 	if (data.isPrivate) {
 		msgAdd(Ext.getCmp('PrivateMsgLogView'), data);
 
-		//Object.observeで監視しているイベントを発火し、DBに保存させる
+		//プロパティの変更を監視している処理を実行させ、DBに保存させる
 		data.favorite = false;
 	}
 }
@@ -3084,31 +3073,32 @@ var msgAdd = (function() {
 		if (doLayout) { targetPanel.doLayout(); }
 
 		//データが変更されたら、DBを更新する
-		Object.observe(data, function(changes) {
-			// console.log(changes);
-			var chengeProp = changes[changes.length-1].name;
-			if (chengeProp != 'favorite') {
-				return;
-			}
-			var changeObject = changes[changes.length-1].object;
-			var tx = wsChatDB.transaction(data.isPrivate ? 'privateMsg' : 'publicMsg', 'readwrite');
-			// console.log(tx);
-			var store = tx.objectStore(data.isPrivate ? 'privateMsg' : 'publicMsg');
-			// console.log(data);
-			store.put(changeObject);
-			tx.oncomplete = function() {
-				// console.log('transaction complete');
-				// console.log(arguments);
-			};
-			tx.onabort = function() {
-				console.log('transaction abort');
-				console.log(arguments);
-			};
-			tx.onerror = function() {
-				console.log('transaction error');
-				console.log(arguments);
-			};
-		});
+        data = new Proxy(data, {
+            set: function(target, property, value, receiver) {
+                target[property] = value;
+                if (property != 'favorite') {
+                    return true;
+                }
+                var tx = wsChatDB.transaction(target.isPrivate ? 'privateMsg' : 'publicMsg', 'readwrite');
+                // console.log(tx);
+                var store = tx.objectStore(target.isPrivate ? 'privateMsg' : 'publicMsg');
+                // console.log(target);
+                store.put(target);
+                tx.oncomplete = function() {
+                    // console.log('transaction complete');
+                    // console.log(arguments);
+                };
+                tx.onabort = function() {
+                    console.log('transaction abort');
+                    console.log(arguments);
+                };
+                tx.onerror = function() {
+                    console.log('transaction error');
+                    console.log(arguments);
+                };
+                return true;
+            }
+        });
 	};
 })();
 
