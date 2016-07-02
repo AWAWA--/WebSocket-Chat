@@ -2592,10 +2592,10 @@ function handleMessage(myUserID, data, noEncryptedData, callbackFn) {
 		}
 	}
 	if (data.isPrivate) {
-		msgAdd(Ext.getCmp('PrivateMsgLogView'), data);
+		var addedPanel = msgAdd(Ext.getCmp('PrivateMsgLogView'), data);
 
 		//プロパティの変更を監視している処理を実行させ、DBに保存させる
-		data.favorite = false;
+		addedPanel.initialConfig.data.favorite = false;
 	}
 }
 
@@ -2657,7 +2657,7 @@ var msgAdd = (function() {
 	});
 	// imageViewWin.show();
 	// imageViewWin.hide();
-	return function(targetPanel, data, doLayout, sort) {
+	return function(targetPanel, _data, doLayout, sort) {
 		if (doLayout == null) { doLayout = true; }
 		if (sort == null) { sort = false; }
 		var headerDefaultStyle = {
@@ -2688,6 +2688,34 @@ var msgAdd = (function() {
 			}
 			msgPanel.doLayout();
 		};
+
+		//データが変更されたら、DBを更新する
+        var data = new Proxy(_data, {
+            set: function(target, property, value, receiver) {
+                target[property] = value;
+                if (property != 'favorite') {
+                    return true;
+                }
+                var tx = wsChatDB.transaction(target.isPrivate ? 'privateMsg' : 'publicMsg', 'readwrite');
+                // console.log(tx);
+                var store = tx.objectStore(target.isPrivate ? 'privateMsg' : 'publicMsg');
+                // console.log(target);
+                store.put(target);
+                tx.oncomplete = function() {
+                    // console.log('transaction complete');
+                    // console.log(arguments);
+                };
+                tx.onabort = function() {
+                    console.log('transaction abort');
+                    console.log(arguments);
+                };
+                tx.onerror = function() {
+                    console.log('transaction error');
+                    console.log(arguments);
+                };
+                return true;
+            }
+        });
 
 		msgPanel = new Ext.Panel({
 			autoWidth : true,
@@ -3071,34 +3099,8 @@ var msgAdd = (function() {
 		}
 
 		if (doLayout) { targetPanel.doLayout(); }
-
-		//データが変更されたら、DBを更新する
-        data = new Proxy(data, {
-            set: function(target, property, value, receiver) {
-                target[property] = value;
-                if (property != 'favorite') {
-                    return true;
-                }
-                var tx = wsChatDB.transaction(target.isPrivate ? 'privateMsg' : 'publicMsg', 'readwrite');
-                // console.log(tx);
-                var store = tx.objectStore(target.isPrivate ? 'privateMsg' : 'publicMsg');
-                // console.log(target);
-                store.put(target);
-                tx.oncomplete = function() {
-                    // console.log('transaction complete');
-                    // console.log(arguments);
-                };
-                tx.onabort = function() {
-                    console.log('transaction abort');
-                    console.log(arguments);
-                };
-                tx.onerror = function() {
-                    console.log('transaction error');
-                    console.log(arguments);
-                };
-                return true;
-            }
-        });
+        
+        return msgPanel;
 	};
 })();
 
